@@ -1,0 +1,168 @@
+openapi: 3.0.3
+info:
+  title: MobileFinder Local API
+  version: 0.1.0
+servers:
+  - url: http://localhost:3001
+paths:
+  /api/stores:
+    get:
+      summary: List stores or get single by id
+      parameters:
+        - in: query
+          name: id
+          schema: { type: string }
+        - in: query
+          name: q
+          schema: { type: string }
+        - in: query
+          name: sortBy
+          schema: { type: string, example: created_at.desc }
+        - in: query
+          name: cursor
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 15 }
+      responses:
+        '200':
+          description: OK
+  /api/store-products:
+    get:
+      summary: List store products
+      parameters:
+        - in: query
+          name: storeId
+          schema: { type: string }
+        - in: query
+          name: carrier
+          schema: { type: string, enum: [kt, skt, lgu] }
+        - in: query
+          name: minPrice
+          schema: { type: integer }
+        - in: query
+          name: maxPrice
+          schema: { type: integer }
+        - in: query
+          name: storage
+          schema: { type: string, enum: [128gb, 256gb, 512gb, 1tb] }
+        - in: query
+          name: signupType
+          schema: { type: string, enum: [번호이동, 신규가입, 기기변경] }
+        - in: query
+          name: conditions
+          schema: { type: string, description: "comma-separated conditions like '필수 요금제,카드 할인'" }
+        - in: query
+          name: q
+          schema: { type: string, description: "모델명 검색" }
+        - in: query
+          name: cursor
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 15 }
+      responses:
+        '200':
+          description: OK
+  /api/reservations:
+    get:
+      summary: List reservations
+      parameters:
+        - in: query
+          name: userId
+          schema: { type: string }
+        - in: query
+          name: cursor
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 15 }
+      responses:
+        '200':
+          description: OK
+    post:
+      summary: Create reservation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id: { type: string }
+                store_id: { type: string }
+                reservation_date: { type: string, format: date }
+                reservation_time: { type: string, example: '14:30:00' }
+                customer_name: { type: string }
+                customer_phone: { type: string }
+                memo: { type: string }
+      responses:
+        '201':
+          description: Created
+  /api/reviews:
+    get:
+      summary: List reviews
+      parameters:
+        - in: query
+          name: storeId
+          schema: { type: string }
+        - in: query
+          name: carrier
+          schema: { type: string, enum: [kt, skt, lgu] }
+        - in: query
+          name: minPrice
+          schema: { type: integer }
+        - in: query
+          name: maxPrice
+          schema: { type: integer }
+        - in: query
+          name: cursor
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 15 }
+      responses:
+        '200':
+          description: OK
+  /api/favorites:
+    get:
+      summary: List favorites
+      parameters:
+        - in: query
+          name: userId
+          schema: { type: string }
+        - in: query
+          name: storeId
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+    post:
+      summary: Create favorite
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id: { type: string }
+                store_id: { type: string }
+      responses:
+        '201':
+          description: Created
+    delete:
+      summary: Delete favorite
+      parameters:
+        - in: query
+          name: id
+          schema: { type: string }
+        - in: query
+          name: userId
+          schema: { type: string }
+        - in: query
+          name: storeId
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
