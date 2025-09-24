@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAuthStore } from '../stores/useAuthStore';
+import { useAuth } from './useAuth';
 
 import { Review } from '../types/review';
 
@@ -174,7 +174,7 @@ const updateReservationStatus = async (reservationId: string, status: Reservatio
 
 // React Query hooks
 export const useUserReservations = () => {
-  const { user } = useAuthStore();
+  const { user } = useAuth();
   
   return useQuery({
     queryKey: ['reservations', 'user', user?.id],
@@ -195,7 +195,7 @@ export const useStoreReservations = (storeId: string) => {
 
 export const useCreateReservation = () => {
   const queryClient = useQueryClient();
-  const { user } = useAuthStore();
+  const { user } = useAuth();
   
   return useMutation({
     mutationFn: createReservation,

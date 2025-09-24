@@ -4,6 +4,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import "@/index.css";
 import ReactQueryClientProvider from "../components/ReactQueryClientProvider";
+import { AuthProvider } from "@/contexts/AuthContext";
+import KakaoScriptLoader from "../components/KakaoScriptLoader";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,8 +32,11 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <KakaoScriptLoader />
         <ReactQueryClientProvider>
-          {children}
+          <AuthProvider>
+            {children}
+          </AuthProvider>
         </ReactQueryClientProvider>
       </body>
     </html>

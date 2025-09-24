@@ -4,7 +4,8 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { useForm } from 'react-hook-form';
-import { ArrowLeft, Store, Mail, Phone, Lock, Building, User } from 'lucide-react';
+import { ArrowLeft, Store, Mail, Phone, Lock, Building, User, Loader2 } from 'lucide-react';
+import { supabase } from '../lib/supabaseClient';
 
 interface SellerSignupFormData {
   name: string;
@@ -24,10 +25,58 @@ export default function SignupScreen({ onBack, onSignup }: SignupScreenProps) {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const { register, handleSubmit, formState: { errors } } = useForm<SellerSignupFormData>();
 
-  const onSellerSubmit = (data: SellerSignupFormData) => {
+  const [isLoading, setIsLoading] = useState(false);
+
+  const onSellerSubmit = async (data: SellerSignupFormData) => {
     console.log('Seller signup data:', data);
-    setIsSubmitted(true);
-    // Show approval pending message
+    setIsLoading(true);
+    
+    try {
+      // 1. 먼저 사용자 계정 생성
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: data.email,
+        password: data.password,
+      });
+
+      if (authError) {
+        console.error('사용자 계정 생성 실패:', authError);
+        alert('회원가입에 실패했습니다: ' + authError.message);
+        return;
+      }
+
+      if (!authData.user) {
+        alert('사용자 생성에 실패했습니다.');
+        return;
+      }
+
+      // 2. 판매자 신청 데이터 저장
+      const { error: applicationError } = await supabase
+        .from('seller_applications')
+        .insert({
+          user_id: authData.user.id,
+          business_name: data.storeName,
+          business_license: data.businessNumber,
+          business_address: '', // 주소는 나중에 추가
+          contact_name: data.name,
+          contact_phone: data.phone,
+          contact_email: data.email,
+          business_description: '',
+          status: 'pending',
+        });
+
+      if (applicationError) {
+        console.error('판매자 신청 저장 실패:', applicationError);
+        alert('신청 저장에 실패했습니다: ' + applicationError.message);
+        return;
+      }
+
+      setIsSubmitted(true);
+    } catch (error) {
+      console.error('판매자 신청 오류:', error);
+      alert('신청 중 오류가 발생했습니다.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (isSubmitted) {
@@ -214,8 +263,15 @@ export default function SignupScreen({ onBack, onSignup }: SignupScreenProps) {
               </p>
             </div>
 
-            <Button type="submit" className="w-full">
-              판매자 가입 신청
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  신청 중...
+                </>
+              ) : (
+                '판매자 가입 신청'
+              )}
             </Button>
           </form>
         </div>

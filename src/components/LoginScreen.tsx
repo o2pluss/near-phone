@@ -24,6 +24,9 @@ import {
   User,
   Store,
 } from "lucide-react";
+import KakaoLoginButton from "./KakaoLoginButton";
+import { useAuth } from "@/contexts/AuthContext";
+import KakaoDebug from "./KakaoDebug";
 
 interface LoginFormData {
   email: string;
@@ -31,15 +34,18 @@ interface LoginFormData {
 }
 
 interface LoginScreenProps {
-  onLogin: (role: "user" | "seller" | "admin") => void;
+  onLogin: (email: string, password: string) => void;
   onSignup: () => void;
+  onKakaoLogin?: () => void;
 }
 
 export default function LoginScreen({
   onLogin,
   onSignup,
+  onKakaoLogin,
 }: LoginScreenProps) {
   const [activeTab, setActiveTab] = useState("user");
+  const { signInWithKakao } = useAuth();
   const {
     register,
     handleSubmit,
@@ -48,20 +54,19 @@ export default function LoginScreen({
   } = useForm<LoginFormData>();
 
   const onSellerSubmit = (data: LoginFormData) => {
-    // Mock login logic for seller
+    // 실제 로그인 로직
     console.log("Seller login data:", data);
-
-    // Demo: admin account
-    if (data.email === "admin@example.com") {
-      onLogin("admin");
-    } else {
-      onLogin("seller");
-    }
+    onLogin(data.email, data.password);
   };
 
-  const handleSocialLogin = (provider: string) => {
-    console.log(`Social login with ${provider}`);
-    onLogin("user");
+  const handleKakaoLoginSuccess = async (userInfo: { id: string; nickname: string; profile_image?: string }) => {
+    // 리다이렉트 방식에서는 이 함수가 호출되지 않음
+    console.log('카카오 로그인 성공 (리다이렉트 방식에서는 호출되지 않음)');
+  };
+
+  const handleKakaoLoginError = (error: any) => {
+    console.error('카카오 로그인 오류:', error);
+    alert('카카오 로그인에 실패했습니다.');
   };
 
   const handleTabChange = (value: string) => {
@@ -73,15 +78,9 @@ export default function LoginScreen({
     <div className="min-h-screen flex items-center justify-center p-4 bg-background">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Smartphone className="h-6 w-6" />
-          </div>
           <h1 className="text-2xl font-semibold mb-2">
             로그인
           </h1>
-          <p className="text-muted-foreground">
-            내 주변 휴대폰 판매점을 찾아보세요
-          </p>
         </div>
         <div>
           <Tabs
@@ -94,15 +93,13 @@ export default function LoginScreen({
                 value="user"
                 className="flex items-center space-x-2"
               >
-                <User className="h-4 w-4" />
-                <span>사용자</span>
+                <span>일반회원</span>
               </TabsTrigger>
               <TabsTrigger
                 value="seller"
                 className="flex items-center space-x-2"
               >
-                <Store className="h-4 w-4" />
-                <span>판매자</span>
+                <span>판매점</span>
               </TabsTrigger>
             </TabsList>
 
@@ -112,14 +109,14 @@ export default function LoginScreen({
               className="space-y-4 mt-6"
             >
               <div className="text-center space-y-4">
+                <KakaoDebug />
                 <div className="space-y-3">
-                  <Button
-                    className="w-full bg-yellow-400 hover:bg-yellow-500 text-yellow-900"
-                    onClick={() => handleSocialLogin("kakao")}
+                  <KakaoLoginButton
+                    onSuccess={handleKakaoLoginSuccess}
+                    onError={handleKakaoLoginError}
                   >
-                    <div className="mr-2 h-4 w-4 bg-yellow-600 rounded" />
                     카카오로 로그인
-                  </Button>
+                  </KakaoLoginButton>
                 </div>
               </div>
             </TabsContent>
@@ -206,9 +203,9 @@ export default function LoginScreen({
               </div>
 
               <div className="text-center text-xs text-muted-foreground space-y-1">
-                <p>데모 계정:</p>
-                <p>판매자: seller@example.com</p>
-                <p>관리자: admin@example.com</p>
+                <p>테스트 계정:</p>
+                <p>판매자: store@test.com</p>
+                <p>관리자: admin@test.com</p>
                 <p>비밀번호: 123456</p>
               </div>
             </TabsContent>

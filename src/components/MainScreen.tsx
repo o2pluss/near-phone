@@ -11,6 +11,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { getPhoneModels } from "../lib/phoneModels";
+import { Header } from "./Header";
 
 interface MainScreenProps {
   onSearch: () => void;
@@ -35,25 +36,22 @@ export default function MainScreen({
 
   return (
     <div className="min-h-screen bg-background">
+      <Header />
+
       {/* Hero Section */}
       <div className="bg-gradient-to-br from-blue-400 to-blue-500 text-white px-4 py-12">
         <div className="max-w-md mx-auto text-center">
           <h1 className="text-2xl font-bold mb-2">
-            가장 저렴한 휴대폰 매장을
+            저렴한 스마트폰 매장을
           </h1>
           <h2 className="text-2xl font-bold mb-4">
             쉽고 빠르게 찾아보세요
           </h2>
-          <p className="text-blue-100 mb-8">
-            내 주변 매장 가격을 한눈에 비교하고
-            <br />
-            최저가로 휴대폰을 구매하세요
-          </p>
           <Button
             onClick={onSearch}
             className="bg-white text-blue-500 hover:bg-blue-50 font-semibold px-8 py-3 rounded-xl shadow-lg"
           >
-            <MapPin className="h-5 w-5 mr-2 fill-current" />내 주변 매장 찾기
+            <MapPin className="h-5 w-5 fill-current" />내 주변 매장 찾기
           </Button>
         </div>
       </div>
@@ -90,7 +88,7 @@ export default function MainScreen({
                       />
                     </div>
                     <div className="absolute -top-1 -right-1">
-                      <Badge className="text-xs px-1.5 py-0.5 bg-purple-300 text-white">
+                      <Badge className="text-xs px-1.5 py-0.5 bg-gray-600 text-white">
                         {index + 1}
                       </Badge>
                     </div>
@@ -111,25 +109,20 @@ export default function MainScreen({
 
         {/* 이벤트 배너 */}
         <Card className="border-0 shadow-sm overflow-hidden">
-          <div className="relative h-32 bg-gradient-to-r from-pink-300 to-rose-300">
-            <img
-              src="https://images.unsplash.com/photo-1741569409778-e7a23b87cfd7?w=400&h=128&fit=crop"
-              alt="이벤트 배너"
-              className="w-full h-full object-cover opacity-30"
-            />
+          <div className="relative h-32 bg-gradient-to-r from-violet-400 to-rose-400">
             <div className="absolute inset-0 flex items-center justify-between p-6">
               <div className="text-white">
                 <div className="flex items-center space-x-2 mb-2">
                   <Gift className="h-4 w-4 fill-current" />
                   <span className="text-sm font-medium">
-                    특별 이벤트
+                    Beta 서비스 운영
                   </span>
                 </div>
                 <h4 className="font-bold text-lg">
-                  신규 가입 혜택
+                  배너 텍스트 작성
                 </h4>
                 <p className="text-sm text-pink-100">
-                  최대 20만원 할인
+                  서브 텍스트
                 </p>
               </div>
               <ChevronRight className="h-6 w-6 text-white fill-current" />

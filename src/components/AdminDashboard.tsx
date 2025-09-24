@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -29,6 +29,7 @@ import {
   Image as ImageIcon
 } from 'lucide-react';
 import ReviewManagement from './admin/ReviewManagement';
+import { supabase } from '../lib/supabaseClient';
 
 interface User {
   id: string;
@@ -175,7 +176,7 @@ const mockDeviceModels: DeviceModel[] = [
 
 export default function AdminDashboard() {
   const [users, setUsers] = useState<User[]>(mockUsers);
-  const [stores, setStores] = useState<Store[]>(mockStores);
+  const [stores, setStores] = useState<Store[]>([]);
   const [products, setProducts] = useState<Product[]>(mockProducts);
   const [deviceModels, setDeviceModels] = useState<DeviceModel[]>(mockDeviceModels);
   const [isDeviceDialogOpen, setIsDeviceDialogOpen] = useState(false);
@@ -183,6 +184,57 @@ export default function AdminDashboard() {
   const [editingDevice, setEditingDevice] = useState<DeviceModel | null>(null);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(true);
+
+  // 판매자 신청 데이터 가져오기
+  useEffect(() => {
+    const fetchSellerApplications = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('seller_applications')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error('판매자 신청 데이터 조회 실패:', error);
+          // 테이블이 없는 경우 빈 배열로 설정
+          if (error.code === 'PGRST205') {
+            console.log('seller_applications 테이블이 없습니다. 빈 배열로 설정합니다.');
+            setStores([]);
+            setIsLoading(false);
+            return;
+          }
+          // 다른 오류의 경우에도 빈 배열로 설정
+          setStores([]);
+          setIsLoading(false);
+          return;
+        }
+
+        // 데이터를 Store 형태로 변환
+        const storeData: Store[] = data.map((app: any) => ({
+          id: app.id,
+          name: app.business_name,
+          ownerName: app.contact_name,
+          email: app.contact_email,
+          phone: app.contact_phone,
+          address: app.business_address,
+          businessNumber: app.business_license,
+          status: app.status === 'pending' ? 'pending' : 
+                  app.status === 'approved' ? 'active' : 'blocked',
+          createdAt: app.created_at.split('T')[0]
+        }));
+
+        setStores(storeData);
+      } catch (error) {
+        console.error('판매자 신청 데이터 조회 오류:', error);
+        setStores([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchSellerApplications();
+  }, []);
 
   // Mock 리뷰 데이터 (통계용)
   const mockReviewStats = {
@@ -215,12 +267,74 @@ export default function AdminDashboard() {
     ));
   };
 
-  const handleStoreApproval = (storeId: string, approve: boolean) => {
-    setStores(stores.map(store => 
-      store.id === storeId 
-        ? { ...store, status: approve ? 'active' : 'blocked' }
-        : store
-    ));
+  const handleStoreApproval = async (storeId: string, approve: boolean) => {
+    try {
+      const status = approve ? 'approved' : 'rejected';
+      
+      // 먼저 신청 정보를 가져와서 user_id 확인
+      const { data: application } = await supabase
+        .from('seller_applications')
+        .select('user_id, contact_email')
+        .eq('id', storeId)
+        .single();
+
+      if (!application) {
+        alert('신청 정보를 찾을 수 없습니다.');
+        return;
+      }
+
+      // seller_applications 테이블 업데이트
+      const { error } = await supabase
+        .from('seller_applications')
+        .update({
+          status,
+          reviewed_at: new Date().toISOString(),
+        })
+        .eq('id', storeId);
+
+      if (error) {
+        console.error('승인/거부 처리 실패:', error);
+        alert('처리에 실패했습니다: ' + error.message);
+        return;
+      }
+
+      // 승인된 경우 사용자의 user_metadata 업데이트
+      if (approve) {
+        try {
+          // Supabase Admin API를 사용하여 사용자 메타데이터 업데이트
+          const { error: updateError } = await supabase.auth.admin.updateUserById(
+            application.user_id,
+            {
+              user_metadata: {
+                role: 'seller',
+                name: application.contact_email.split('@')[0] || '판매자'
+              }
+            }
+          );
+
+          if (updateError) {
+            console.error('사용자 메타데이터 업데이트 실패:', updateError);
+            // 메타데이터 업데이트 실패해도 승인은 완료된 것으로 처리
+          } else {
+            console.log('사용자 메타데이터 업데이트 완료');
+          }
+        } catch (updateError) {
+          console.error('사용자 메타데이터 업데이트 중 오류:', updateError);
+        }
+      }
+
+      // 로컬 상태 업데이트
+      setStores(stores.map(store => 
+        store.id === storeId 
+          ? { ...store, status: approve ? 'active' : 'blocked' }
+          : store
+      ));
+
+      alert(approve ? '승인되었습니다.' : '거부되었습니다.');
+    } catch (error) {
+      console.error('승인/거부 처리 오류:', error);
+      alert('처리 중 오류가 발생했습니다.');
+    }
   };
 
   const handleStoreBlock = (storeId: string, block: boolean) => {
@@ -497,7 +611,9 @@ export default function AdminDashboard() {
         {/* Store Management */}
         <TabsContent value="stores" className="space-y-4">
           <div className="flex justify-between items-center">
-            <h3 className="text-lg font-semibold">매장 목록 ({stores.length})</h3>
+            <h3 className="text-lg font-semibold">
+              매장 목록 ({isLoading ? '로딩 중...' : stores.length})
+            </h3>
             <div className="flex space-x-2">
               <Badge variant="destructive">{pendingStores.length}개 승인 대기</Badge>
               <Badge variant="outline">{blockedStores.length}개 차단됨</Badge>

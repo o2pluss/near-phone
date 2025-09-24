@@ -20,8 +20,11 @@ import {
   ChevronRight,
   FileText,
   AlertTriangle,
+  ArrowLeft,
 } from 'lucide-react';
-import { useAuthStore } from '../stores/useAuthStore';
+import { useAuth } from '../hooks/useAuth';
+import { useRouter } from 'next/navigation';
+import { BottomNavigation } from './BottomNavigation';
 
 interface MyPageProps {
   onBack: () => void;
@@ -29,7 +32,8 @@ interface MyPageProps {
 }
 
 export default function MyPage({ onBack, onLogout }: MyPageProps) {
-  const { user } = useAuthStore();
+  const { user, profile, signOut } = useAuth();
+  const router = useRouter();
   const [isWithdrawalDialogOpen, setIsWithdrawalDialogOpen] = useState(false);
   const [isWithdrawalConfirmed, setIsWithdrawalConfirmed] = useState(false);
 
@@ -46,6 +50,18 @@ export default function MyPage({ onBack, onLogout }: MyPageProps) {
   const handleWithdrawalDialogClose = () => {
     setIsWithdrawalDialogOpen(false);
     setIsWithdrawalConfirmed(false);
+  };
+
+  const handleLogout = async () => {
+    try {
+      // Supabase Auth에서 로그아웃
+      await signOut();
+
+      // 로그인 페이지로 이동
+      router.push('/');
+    } catch (error) {
+      console.error('로그아웃 중 오류 발생:', error);
+    }
   };
 
   const menuItems = [
@@ -70,29 +86,43 @@ export default function MyPage({ onBack, onLogout }: MyPageProps) {
   ];
 
   return (
-    <div className="h-full bg-gray-50 overflow-y-auto">
-      <div className="max-w-md mx-auto bg-white min-h-full">
+    <div className="h-full flex flex-col bg-gray-50">
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-md mx-auto bg-white min-h-full">
+        {/* 뒤로가기 버튼 */}
+        <div className="sticky top-0 z-10 bg-white border-b px-4 py-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onBack}
+            className="flex items-center space-x-2 text-gray-600 hover:text-gray-900"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span>뒤로가기</span>
+          </Button>
+        </div>
+
         {/* 프로필 섹션 */}
         <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-8 text-white">
           <div className="flex items-center space-x-4">
             <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
               <User className="h-8 w-8" />
             </div>
-            <div className="flex-1">
-              <h2 className="text-xl font-semibold">{user?.name}</h2>
-              <div className="space-y-0.5 mt-1">
-                <div className="flex items-center space-x-1">
-                  <Phone className="h-3 w-3 text-blue-100" />
-                  <p className="text-blue-100 text-sm">{user?.phone}</p>
+                <div className="flex-1">
+                  <h2 className="text-xl font-semibold">{profile?.name || user?.email?.split('@')[0] || '사용자'}</h2>
+                  <div className="space-y-0.5 mt-1">
+                    <div className="flex items-center space-x-1">
+                      <Phone className="h-3 w-3 text-blue-100" />
+                      <p className="text-blue-100 text-sm">{profile?.phone || '전화번호 없음'}</p>
+                    </div>
+                    {user?.email && (
+                      <p className="text-blue-200 text-xs">{user.email}</p>
+                    )}
+                  </div>
+                  <p className="text-xs text-blue-200 mt-2">
+                    {profile?.login_type === 'kakao' ? '카카오톡 연동 계정' : '일반 계정'}
+                  </p>
                 </div>
-                {user?.email && (
-                  <p className="text-blue-200 text-xs">{user.email}</p>
-                )}
-              </div>
-              <p className="text-xs text-blue-200 mt-2">
-                {user?.loginType === 'kakao' ? '카카오톡 연동 계정' : '일반 계정'}
-              </p>
-            </div>
           </div>
         </div>
 
@@ -121,7 +151,7 @@ export default function MyPage({ onBack, onLogout }: MyPageProps) {
           <Button
             variant="outline"
             className="w-full text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
-            onClick={onLogout}
+            onClick={handleLogout}
           >
             <LogOut className="h-4 w-4 mr-2" />
             로그아웃
@@ -186,7 +216,11 @@ export default function MyPage({ onBack, onLogout }: MyPageProps) {
             </DialogContent>
           </Dialog>
         </div>
+        </div>
       </div>
+      
+      {/* Bottom Navigation */}
+      <BottomNavigation />
     </div>
   );
 }

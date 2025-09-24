@@ -1,78 +1,183 @@
-# Near Phone
+# Supabase CLI
 
-스마트폰 매장 찾기 서비스 - 가까운 매장에서 최적의 가격으로 스마트폰을 구매하세요.
+[![Coverage Status](https://coveralls.io/repos/github/supabase/cli/badge.svg?branch=main)](https://coveralls.io/github/supabase/cli?branch=main) [![Bitbucket Pipelines](https://img.shields.io/bitbucket/pipelines/supabase-cli/setup-cli/master?style=flat-square&label=Bitbucket%20Canary)](https://bitbucket.org/supabase-cli/setup-cli/pipelines) [![Gitlab Pipeline Status](https://img.shields.io/gitlab/pipeline-status/sweatybridge%2Fsetup-cli?label=Gitlab%20Canary)
+](https://gitlab.com/sweatybridge/setup-cli/-/pipelines)
 
-## 🚀 주요 기능
+[Supabase](https://supabase.io) is an open source Firebase alternative. We're building the features of Firebase using enterprise-grade open source tools.
 
-- **매장 검색**: 위치 기반 매장 검색 및 지도 표시
-- **상품 비교**: 다양한 매장의 상품 가격 및 조건 비교
-- **필터링**: 통신사, 용량, 가격대, 가입유형 등 다양한 필터
-- **예약 시스템**: 매장 방문 예약 및 관리
-- **리뷰 시스템**: 매장 리뷰 및 평점 확인
+This repository contains all the functionality for Supabase CLI.
 
-## 🛠 기술 스택
+- [x] Running Supabase locally
+- [x] Managing database migrations
+- [x] Creating and deploying Supabase Functions
+- [x] Generating types directly from your database schema
+- [x] Making authenticated HTTP requests to [Management API](https://supabase.com/docs/reference/api/introduction)
 
-- **Frontend**: Next.js 15, React 19, TypeScript
-- **Styling**: Tailwind CSS, shadcn/ui
-- **Backend**: Supabase (PostgreSQL, Auth, RLS)
-- **State Management**: Zustand, React Query
-- **Maps**: Kakao Map API
-- **Forms**: React Hook Form, Zod
+## Getting started
 
-## 📦 설치 및 실행
+### Install the CLI
+
+Available via [NPM](https://www.npmjs.com) as dev dependency. To install:
 
 ```bash
-# 의존성 설치
-npm install
-
-# 개발 서버 실행
-npm run dev
-
-# 프로덕션 빌드
-npm run build
-npm start
+npm i supabase --save-dev
 ```
 
-## 🌐 환경 설정
+To install the beta release channel:
 
-`.env.local` 파일을 생성하고 다음 환경변수를 설정하세요:
-
-```env
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+```bash
+npm i supabase@beta --save-dev
 ```
 
-## 📱 사용법
+When installing with yarn 4, you need to disable experimental fetch with the following nodejs config.
 
-1. **매장 검색**: 메인 화면에서 원하는 스마트폰 모델을 선택
-2. **필터 적용**: 통신사, 용량, 가격대 등 필터 설정
-3. **매장 비교**: 목록 또는 지도에서 매장 정보 확인
-4. **예약하기**: 원하는 매장에서 방문 예약
+```
+NODE_OPTIONS=--no-experimental-fetch yarn add supabase
+```
 
-## 🗄 데이터베이스
+> **Note**
+For Bun versions below v1.0.17, you must add `supabase` as a [trusted dependency](https://bun.sh/guides/install/trusted) before running `bun add -D supabase`.
 
-Supabase를 사용하여 다음 테이블들을 관리합니다:
+<details>
+  <summary><b>macOS</b></summary>
 
-- `users`: 사용자 정보
-- `stores`: 매장 정보
-- `products`: 상품 정보
-- `store_products`: 매장별 상품 가격 및 조건
-- `reservations`: 예약 정보
-- `reviews`: 리뷰 정보
-- `favorites`: 즐겨찾기 매장
+  Available via [Homebrew](https://brew.sh). To install:
 
-## 📄 API 문서
+  ```sh
+  brew install supabase/tap/supabase
+  ```
 
-API 문서는 `docs/api.md`와 `openapi.yaml`에서 확인할 수 있습니다.
+  To install the beta release channel:
+  
+  ```sh
+  brew install supabase/tap/supabase-beta
+  brew link --overwrite supabase-beta
+  ```
+  
+  To upgrade:
 
-## 🤝 기여하기
+  ```sh
+  brew upgrade supabase
+  ```
+</details>
 
-1. Fork the Project
-2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the Branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+<details>
+  <summary><b>Windows</b></summary>
 
-## 📄 라이선스
+  Available via [Scoop](https://scoop.sh). To install:
 
-이 프로젝트는 MIT 라이선스 하에 배포됩니다.
+  ```powershell
+  scoop bucket add supabase https://github.com/supabase/scoop-bucket.git
+  scoop install supabase
+  ```
+
+  To upgrade:
+
+  ```powershell
+  scoop update supabase
+  ```
+</details>
+
+<details>
+  <summary><b>Linux</b></summary>
+
+  Available via [Homebrew](https://brew.sh) and Linux packages.
+
+  #### via Homebrew
+
+  To install:
+
+  ```sh
+  brew install supabase/tap/supabase
+  ```
+
+  To upgrade:
+
+  ```sh
+  brew upgrade supabase
+  ```
+
+  #### via Linux packages
+
+  Linux packages are provided in [Releases](https://github.com/supabase/cli/releases). To install, download the `.apk`/`.deb`/`.rpm`/`.pkg.tar.zst` file depending on your package manager and run the respective commands.
+
+  ```sh
+  sudo apk add --allow-untrusted <...>.apk
+  ```
+
+  ```sh
+  sudo dpkg -i <...>.deb
+  ```
+
+  ```sh
+  sudo rpm -i <...>.rpm
+  ```
+
+  ```sh
+  sudo pacman -U <...>.pkg.tar.zst
+  ```
+</details>
+
+<details>
+  <summary><b>Other Platforms</b></summary>
+
+  You can also install the CLI via [go modules](https://go.dev/ref/mod#go-install) without the help of package managers.
+
+  ```sh
+  go install github.com/supabase/cli@latest
+  ```
+
+  Add a symlink to the binary in `$PATH` for easier access:
+
+  ```sh
+  ln -s "$(go env GOPATH)/bin/cli" /usr/bin/supabase
+  ```
+
+  This works on other non-standard Linux distros.
+</details>
+
+<details>
+  <summary><b>Community Maintained Packages</b></summary>
+
+  Available via [pkgx](https://pkgx.sh/). Package script [here](https://github.com/pkgxdev/pantry/blob/main/projects/supabase.com/cli/package.yml).
+  To install in your working directory:
+
+  ```bash
+  pkgx install supabase
+  ```
+
+  Available via [Nixpkgs](https://nixos.org/). Package script [here](https://github.com/NixOS/nixpkgs/blob/master/pkgs/development/tools/supabase-cli/default.nix).
+</details>
+
+### Run the CLI
+
+```bash
+supabase bootstrap
+```
+
+Or using npx:
+
+```bash
+npx supabase bootstrap
+```
+
+The bootstrap command will guide you through the process of setting up a Supabase project using one of the [starter](https://github.com/supabase-community/supabase-samples/blob/main/samples.json) templates.
+
+## Docs
+
+Command & config reference can be found [here](https://supabase.com/docs/reference/cli/about).
+
+## Breaking changes
+
+We follow semantic versioning for changes that directly impact CLI commands, flags, and configurations.
+
+However, due to dependencies on other service images, we cannot guarantee that schema migrations, seed.sql, and generated types will always work for the same CLI major version. If you need such guarantees, we encourage you to pin a specific version of CLI in package.json.
+
+## Developing
+
+To run from source:
+
+```sh
+# Go >= 1.22
+go run . help
+```
