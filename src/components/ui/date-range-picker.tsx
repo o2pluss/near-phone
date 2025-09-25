@@ -20,7 +20,7 @@ export function DateRangePicker({
   onStartDateChange,
   onEndDateChange,
   onSearch,
-  label = "날짜 범위",
+  label = "",
   placeholder = "날짜를 선택하세요"
 }: DateRangePickerProps) {
   

@@ -15,7 +15,11 @@ export interface Reservation {
     | "cancelled"
     | "cancel_pending";
   createdAt: string;
+  updatedAt?: string;
   conditions: string[];
+  // 고객 정보
+  customerName: string;
+  customerPhone: string;
   // 상품별 통신사 정보
   productCarrier: "kt" | "skt" | "lgu";
   // 용량 정보

@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState, useMemo } from "react";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
@@ -60,21 +62,78 @@ interface Product {
   updatedAt?: Date;
 }
 
-interface ProductManagementProps {
-  products: Product[];
-  productLogs: ProductLog[];
-  onEditProduct: (product: Product) => void;
-  onDeleteProduct: (productId: string) => void;
-  onBulkSave: (products: Omit<Product, "id">[], updatedProductId?: string, updatedProductIds?: string[]) => void;
-}
+export default function ProductManagement() {
+  // Mock 데이터 - 실제로는 API에서 가져와야 함
+  const [products, setProducts] = useState<Product[]>([
+    {
+      id: "1",
+      model: "Galaxy S24 Ultra",
+      carrier: "skt",
+      storage: "512gb",
+      price: 1500000,
+      conditions: ["S급", "카드 할인"],
+      isActive: true,
+      createdAt: new Date("2024-01-15"),
+      updatedAt: new Date("2024-01-20"),
+    },
+    {
+      id: "2",
+      model: "iPhone 15 Pro",
+      carrier: "kt",
+      storage: "256gb",
+      price: 1200000,
+      conditions: ["A급", "번호이동"],
+      isActive: true,
+      createdAt: new Date("2024-01-16"),
+      updatedAt: new Date("2024-01-21"),
+    },
+    {
+      id: "3",
+      model: "Galaxy S24",
+      carrier: "lgu",
+      storage: "128gb",
+      price: 900000,
+      conditions: ["B급"],
+      isActive: false,
+      createdAt: new Date("2024-01-17"),
+      updatedAt: new Date("2024-01-22"),
+    },
+  ]);
 
-export default function ProductManagement({
-  products,
-  productLogs,
-  onEditProduct,
-  onDeleteProduct,
-  onBulkSave,
-}: ProductManagementProps) {
+  const [productLogs, setProductLogs] = useState<ProductLog[]>([]);
+
+  const onEditProduct = (product: Product) => {
+    setEditingProduct(product);
+    setEditorMode('edit');
+    setShowBulkEditor(true);
+  };
+
+  const onDeleteProduct = (productId: string) => {
+    setProducts(prev => prev.filter(p => p.id !== productId));
+  };
+
+  const onBulkSave = (newProducts: Omit<Product, "id">[], updatedProductId?: string, updatedProductIds?: string[]) => {
+    if (editorMode === 'add') {
+      const productsWithIds = newProducts.map(product => ({
+        ...product,
+        id: Date.now().toString(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }));
+      setProducts(prev => [...prev, ...productsWithIds]);
+    } else if (editorMode === 'edit' && updatedProductId) {
+      setProducts(prev => prev.map(p => 
+        p.id === updatedProductId 
+          ? { ...p, ...newProducts[0], updatedAt: new Date() }
+          : p
+      ));
+    } else if (editorMode === 'bulk' && updatedProductIds) {
+      setProducts(prev => prev.map(p => {
+        const updatedProduct = newProducts.find(np => updatedProductIds.includes(p.id));
+        return updatedProduct ? { ...p, ...updatedProduct, updatedAt: new Date() } : p;
+      }));
+    }
+  };
   const [showBulkEditor, setShowBulkEditor] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [editingProducts, setEditingProducts] = useState<Product[]>([]);

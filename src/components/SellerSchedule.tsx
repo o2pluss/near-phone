@@ -1,4 +1,6 @@
-import React, { useState } from "react";
+"use client";
+
+import React, { useState, useMemo } from "react";
 import {
   Card,
   CardContent,
@@ -9,24 +11,27 @@ import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Input } from "./ui/input";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "./ui/alert-dialog";
+import {
   Clock,
   ArrowLeft,
   Calendar,
   Search,
   X,
 } from "lucide-react";
-
-interface Reservation {
-  id: string;
-  customerName: string;
-  customerPhone: string;
-  date: string;
-  time: string;
-  model: string;
-  price: number;
-  status: "pending" | "confirmed" | "completed" | "cancelled";
-  createdAt: string;
-}
+import { useReservationList, useUpdateReservationStatus } from "../hooks/useReservationList";
+import { transformApiReservationsToReservations } from "../utils/reservationDataTransform";
+import type { Reservation } from "../types/reservation";
+import { useRouter } from "next/navigation";
 
 interface SellerScheduleProps {
   onBack: () => void;
@@ -36,95 +41,39 @@ interface SellerScheduleProps {
 const getTodayDate = () =>
   new Date().toISOString().split("T")[0];
 
-const mockReservations: Reservation[] = [
-  {
-    id: "1",
-    customerName: "김고객",
-    customerPhone: "010-1234-5678",
-    date: getTodayDate(),
-    time: "14:30",
-    model: "iPhone 15 Pro",
-    price: 1200000,
-    status: "pending",
-    createdAt: "2025-01-20T10:30:00",
-  },
-  {
-    id: "2",
-    customerName: "이사용",
-    customerPhone: "010-2345-6789",
-    date: getTodayDate(),
-    time: "11:00",
-    model: "Galaxy S24 Ultra",
-    price: 980000,
-    status: "confirmed",
-    createdAt: "2025-01-21T15:20:00",
-  },
-  {
-    id: "3",
-    customerName: "박고객",
-    customerPhone: "010-3456-7890",
-    date: getTodayDate(),
-    time: "16:00",
-    model: "iPhone 15",
-    price: 950000,
-    status: "pending",
-    createdAt: "2025-01-22T09:15:00",
-  },
-  {
-    id: "4",
-    customerName: "최사용",
-    customerPhone: "010-4567-8901",
-    date: getTodayDate(),
-    time: "10:30",
-    model: "Galaxy S24",
-    price: 850000,
-    status: "completed",
-    createdAt: "2025-01-18T14:20:00",
-  },
-  {
-    id: "6",
-    customerName: "홍길동",
-    customerPhone: "010-9876-5432",
-    date: getTodayDate(),
-    time: "09:30",
-    model: "Galaxy S24 Ultra",
-    price: 1100000,
-    status: "confirmed",
-    createdAt: "2025-01-21T08:20:00",
-  },
-  {
-    id: "7",
-    customerName: "신고객",
-    customerPhone: "010-1111-2222",
-    date: getTodayDate(),
-    time: "18:00",
-    model: "iPhone 15 Pro Max",
-    price: 1400000,
-    status: "pending",
-    createdAt: "2025-01-22T12:15:00",
-  },
-  {
-    id: "8",
-    customerName: "정고객",
-    customerPhone: "010-5555-6789",
-    date: getTodayDate(),
-    time: "15:30",
-    model: "Galaxy Z Fold5",
-    price: 1550000,
-    status: "confirmed",
-    createdAt: "2025-01-22T13:30:00",
-  },
-];
 
 export default function SellerSchedule({
   onBack,
 }: SellerScheduleProps) {
-  const [reservations, setReservations] =
-    useState<Reservation[]>(mockReservations);
   const [searchQuery, setSearchQuery] = useState("");
+  const router = useRouter();
 
   // 오늘 날짜
   const today = getTodayDate();
+
+  // API 훅 사용 (페이지네이션 지원)
+  const { 
+    data, 
+    isLoading, 
+    error, 
+    fetchNextPage, 
+    hasNextPage, 
+    isFetchingNextPage 
+  } = useReservationList({
+    startDate: today,
+    endDate: today,
+    limit: 50, // 스케줄용으로 충분한 수량
+  });
+  
+  const updateReservationStatus = useUpdateReservationStatus();
+  
+  // 모든 페이지의 데이터를 합쳐서 Reservation 타입으로 변환
+  const allApiReservations = data?.pages.flatMap(page => page.items) || [];
+  const reservations = transformApiReservationsToReservations(allApiReservations);
+  
+  // 디버깅을 위한 로그
+  console.log('API 예약 데이터:', allApiReservations);
+  console.log('변환된 예약 데이터:', reservations);
 
   // 검색 필터링 함수
   const filterReservationsBySearch = (
@@ -149,9 +98,9 @@ export default function SellerSchedule({
     });
   };
 
-  // 당일 예약 필터링 (확정된 예약만)
+  // 당일 예약 필터링 (확정된 예약과 완료된 예약)
   let todayConfirmedReservations = reservations.filter(
-    (r) => r.date === today && r.status === "confirmed",
+    (r) => r.date === today && (r.status === "confirmed" || r.status === "completed"),
   );
 
   // 검색어가 있으면 검색 필터 적용
@@ -187,8 +136,27 @@ export default function SellerSchedule({
     );
   };
 
+  // 예약 상태 업데이트 핸들러 (완료 처리만)
+  const handleStatusUpdate = async (reservationId: string, newStatus: string) => {
+    console.log('예약 상태 업데이트 시도:', { reservationId, newStatus });
+    try {
+      await updateReservationStatus.mutateAsync({
+        reservationId,
+        status: newStatus,
+      });
+      console.log('예약 상태 업데이트 성공');
+    } catch (error) {
+      console.error('예약 상태 업데이트 실패:', error);
+    }
+  };
+
+  // 예약 상세보기로 이동
+  const handleReservationClick = (reservationId: string) => {
+    router.push(`/seller/reservations/${reservationId}`);
+  };
+
   return (
-    <div className="container mx-auto p-4 space-y-6">
+    <div className="container mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center space-x-4">
         <Button
@@ -200,68 +168,61 @@ export default function SellerSchedule({
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div className="flex-1">
-          <h1 className="text-2xl font-bold">
-            오늘의 예약 스케줄
-          </h1>
-          <p className="text-muted-foreground">
-            {new Date().toLocaleDateString("ko-KR", {
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-              weekday: "long",
-            })}
-          </p>
+          <h3 className="text-xl font-bold">
+            예약 스케줄
+          </h3>
+          <div className="flex items-center space-x-4">
+            <p className="text-muted-foreground">
+              {new Date(today).toLocaleDateString("ko-KR", {
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+                weekday: "long",
+              })}
+            </p>
+          </div>
         </div>
       </div>
 
       {/* 검색 */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Search className="h-5 w-5" />
-            <span>예약 검색</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex space-x-2">
-            <div className="relative flex-1">
-              <Input
-                placeholder="고객명 또는 연락처 뒷자리 4자리로 검색 (예: 홍길동, 5432)"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pr-8"
-              />
-              {searchQuery && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
-                  onClick={clearSearch}
-                >
-                  <X className="h-3 w-3" />
-                </Button>
-              )}
-            </div>
-            <Button
-              variant="outline"
-              onClick={() => {
-                /* 검색 실행은 실시간으로 이미 적용됨 */
-              }}
-              className="px-4"
-            >
-              <Search className="h-4 w-4 mr-2" />
-              검색
-            </Button>
+      <div className="space-y-4">
+        <div className="flex space-x-2">
+          <div className="relative flex-1">
+            <Input
+              placeholder="고객명 또는 휴대전화 뒷자리 4자"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="placeholder:text-sm"
+            />
+            {searchQuery && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+                onClick={clearSearch}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            )}
           </div>
-          {searchQuery && (
-            <div className="text-sm text-muted-foreground">
-              '
-              <span className="font-medium">{searchQuery}</span>
-              ' 검색 결과: {todayConfirmedReservations.length}건
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          <Button
+            variant="outline"
+            onClick={() => {
+              /* 검색 실행은 실시간으로 이미 적용됨 */
+            }}
+            className="px-4"
+          >
+            <Search className="h-4 w-4" />
+          </Button>
+        </div>
+        {searchQuery && (
+          <div className="text-sm text-muted-foreground">
+            '
+            <span className="font-medium">{searchQuery}</span>
+            ' 검색 결과: {todayConfirmedReservations.length}건
+          </div>
+        )}
+      </div>
 
       {/* 시간대별 스케줄 */}
       <Card>
@@ -274,21 +235,30 @@ export default function SellerSchedule({
               <div>
                 <h3 className="font-semibold">
                   {searchQuery
-                    ? "검색된 확정 예약"
-                    : "확정된 예약"}
+                    ? "검색된 예약"
+                    : "오늘의 예약"}
                 </h3>
               </div>
             </div>
             <Badge
               variant="secondary"
-              className="text-lg px-3 py-1"
+              className="text-md px-3 py-1"
             >
               {todayConfirmedReservations.length}건
             </Badge>
           </div>
         </CardContent>
         <CardContent>
-          {todayConfirmedReservations.length > 0 ? (
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+              <span className="ml-2">예약을 불러오는 중...</span>
+            </div>
+          ) : error ? (
+            <div className="text-center py-8 text-red-500">
+              예약을 불러오는데 실패했습니다.
+            </div>
+          ) : todayConfirmedReservations.length > 0 ? (
             <div className="space-y-3">
               {/* 시간대별 그룹화 */}
               {(() => {
@@ -308,14 +278,29 @@ export default function SellerSchedule({
                           key={reservation.id}
                           className="border-b border-border pb-3 last:border-b-0"
                         >
-                          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                          <div 
+                            className={`rounded-lg p-4 cursor-pointer hover:shadow-md transition-shadow ${
+                              reservation.status === 'completed' 
+                                ? 'bg-gray-100 border border-gray-300' 
+                                : 'bg-green-50 border border-green-200'
+                            }`}
+                            onClick={() => handleReservationClick(reservation.id)}
+                          >
                             {/* HH:MM */}
-                            <div className="text-xl font-bold text-primary mb-2">
+                            <div className={`text-xl font-bold mb-2 ${
+                              reservation.status === 'completed' 
+                                ? 'text-gray-500' 
+                                : 'text-primary'
+                            }`}>
                               {reservation.time}
                             </div>
 
                             {/* 고객명 · 연락처 */}
-                            <div className="text-base font-medium mb-1">
+                            <div className={`text-base font-medium mb-1 ${
+                              reservation.status === 'completed' 
+                                ? 'text-gray-600' 
+                                : ''
+                            }`}>
                               <span>
                                 {searchQuery
                                   ? highlightText(
@@ -337,17 +322,62 @@ export default function SellerSchedule({
                               </span>
                             </div>
 
-                            {/* 모델명 */}
-                            <div className="text-muted-foreground mb-1">
+                            {/* 모델명 및 용량 */}
+                            <div className={`mb-1 ${
+                              reservation.status === 'completed' 
+                                ? 'text-gray-500' 
+                                : 'text-muted-foreground'
+                            }`}>
                               {reservation.model}
                             </div>
 
-                            {/* 가격 */}
-                            <div className="text-right">
-                              <span className="font-bold text-blue-600">
-                                {reservation.price.toLocaleString()}
-                                원
+                            {/* 가격 및 완료 버튼 */}
+                            <div className="flex items-center justify-between">
+                              <span className={`font-bold ${
+                                reservation.status === 'completed' 
+                                  ? 'text-gray-500' 
+                                  : 'text-blue-600'
+                              }`}>
+                                {reservation.price.toLocaleString()}원
                               </span>
+                              {reservation.status === 'confirmed' && (
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      disabled={updateReservationStatus.isPending}
+                                      className="text-green-600 border-green-600 hover:bg-green-50"
+                                    >
+                                      종료
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>예약 종료 확인</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        해당 예약을 종료 처리하시나요?
+                                        <br />
+                                        <span className="font-medium">
+                                          {reservation.customerName} - {reservation.time}
+                                        </span>
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>취소</AlertDialogCancel>
+                                      <AlertDialogAction
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleStatusUpdate(reservation.id, 'completed');
+                                        }}
+                                        className="bg-green-600 hover:bg-green-700"
+                                      >
+                                        종료 처리
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -415,15 +445,28 @@ export default function SellerSchedule({
                                 return (
                                   <div
                                     key={reservation.id}
-                                    className="bg-green-50 border border-green-200 rounded-lg p-3"
+                                    className={`rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow ${
+                                      reservation.status === 'completed' 
+                                        ? 'bg-gray-100 border border-gray-300' 
+                                        : 'bg-green-50 border border-green-200'
+                                    }`}
+                                    onClick={() => handleReservationClick(reservation.id)}
                                   >
                                     {/* HH:MM */}
-                                    <div className="text-lg font-bold text-primary mb-2">
+                                    <div className={`text-lg font-bold mb-2 ${
+                                      reservation.status === 'completed' 
+                                        ? 'text-gray-500' 
+                                        : 'text-primary'
+                                    }`}>
                                       {reservation.time}
                                     </div>
 
                                     {/* 고객명 · 연락처 */}
-                                    <div className="text-sm font-medium mb-1">
+                                    <div className={`text-sm font-medium mb-1 ${
+                                      reservation.status === 'completed' 
+                                        ? 'text-gray-600' 
+                                        : ''
+                                    }`}>
                                       <span>
                                         {
                                           reservation.customerName
@@ -439,17 +482,62 @@ export default function SellerSchedule({
                                       </span>
                                     </div>
 
-                                    {/* 모델명 */}
-                                    <div className="text-muted-foreground text-sm mb-1">
+                                    {/* 모델명 및 용량 */}
+                                    <div className={`text-sm font-bold ${
+                                      reservation.status === 'completed' 
+                                        ? 'text-gray-500' 
+                                        : ''
+                                    }`}>
                                       {reservation.model}
                                     </div>
 
-                                    {/* 가격 */}
-                                    <div className="text-right">
-                                      <span className="font-bold text-blue-600">
-                                        {reservation.price.toLocaleString()}
-                                        원
+                                    {/* 가격 및 완료 버튼 */}
+                                    <div className="flex items-center justify-between">
+                                      <span className={`text-sm ${
+                                        reservation.status === 'completed' 
+                                          ? 'text-gray-500' 
+                                          : ''
+                                      }`}>
+                                        {reservation.price.toLocaleString()}원
                                       </span>
+                                      {reservation.status === 'confirmed' && (
+                                        <AlertDialog>
+                                          <AlertDialogTrigger asChild>
+                                            <Button
+                                              size="sm"
+                                              variant="outline"
+                                              disabled={updateReservationStatus.isPending}
+                                              className="text-green-600 border-green-600 hover:bg-green-50"
+                                            >
+                                              종료
+                                            </Button>
+                                          </AlertDialogTrigger>
+                                          <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                              <AlertDialogTitle>예약 종료 확인</AlertDialogTitle>
+                                              <AlertDialogDescription>
+                                                해당 예약을 종료 처리하시나요?
+                                                <br />
+                                                <span className="font-medium">
+                                                  {reservation.customerName} - {reservation.time}
+                                                </span>
+                                              </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                              <AlertDialogCancel>취소</AlertDialogCancel>
+                                              <AlertDialogAction
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  handleStatusUpdate(reservation.id, 'completed');
+                                                }}
+                                                className="bg-green-600 hover:bg-green-700"
+                                              >
+                                                종료 처리
+                                              </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                          </AlertDialogContent>
+                                        </AlertDialog>
+                                      )}
                                     </div>
                                   </div>
                                 );
@@ -473,7 +561,7 @@ export default function SellerSchedule({
               <h3 className="font-medium text-lg mb-2">
                 {searchQuery
                   ? "검색 결과가 없습니다"
-                  : "확정된 예약이 없습니다"}
+                  : "오늘의 예약이 없습니다"}
               </h3>
               <p className="text-muted-foreground text-sm">
                 {searchQuery ? (
@@ -482,18 +570,37 @@ export default function SellerSchedule({
                     <span className="font-medium">
                       {searchQuery}
                     </span>
-                    ' 검색어에 해당하는 확정 예약이 없습니다.
+                    ' 검색어에 해당하는 예약이 없습니다.
                     <br />
                     다른 검색어를 시도해보세요.
                   </>
                 ) : (
                   <>
-                    오늘 확정된 예약이 없습니다.
-                    <br />
-                    예약 관리에서 대기 중인 예약을 확인해보세요.
+                    예약 관리에서 대기중인 예약을 확인해보세요.
                   </>
                 )}
               </p>
+            </div>
+          )}
+          
+          {/* 무한 스크롤 버튼 */}
+          {hasNextPage && (
+            <div className="flex justify-center py-6 border-t">
+              <Button
+                variant="outline"
+                onClick={() => fetchNextPage()}
+                disabled={isFetchingNextPage}
+                className="min-w-[120px]"
+              >
+                {isFetchingNextPage ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900 mr-2"></div>
+                    불러오는 중...
+                  </>
+                ) : (
+                  '더 보기'
+                )}
+              </Button>
             </div>
           )}
         </CardContent>

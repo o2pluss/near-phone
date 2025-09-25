@@ -18,7 +18,6 @@ import AdminDashboard from './components/AdminDashboard';
 import MyPage from './components/MyPage';
 import ReviewListPage from './components/ReviewListPage';
 import { Header } from './components/Header';
-import { BottomNavigation } from './components/BottomNavigation';
 import { MapPin, Heart, Calendar, Search, Shield, Smartphone, User, Home } from 'lucide-react';
 
 type Screen = 'login' | 'signup' | 'main' | 'search' | 'detail' | 'favorites' | 'reservations' | 'seller' | 'schedule' | 'reservation-detail' | 'admin' | 'mypage' | 'reviews';
@@ -152,14 +151,8 @@ function AppContent() {
         return <SellerSchedule onBack={() => setCurrentScreen('seller')} />;
       case 'reservation-detail':
         return <ReservationDetail 
-          reservation={selectedReservation}
+          reservationId={selectedReservation?.id || ''}
           onBack={() => setCurrentScreen('seller')}
-          onStatusUpdate={(reservationId, status) => {
-            // 예약 상태 업데이트 로직
-            console.log('Updating reservation:', reservationId, 'to status:', status);
-            // 실제로는 API 호출이나 상태 관리를 통해 처리
-            setCurrentScreen('seller');
-          }}
         />;
       case 'admin':
         return <AdminDashboard />;
@@ -177,23 +170,18 @@ function AppContent() {
     }
   };
 
-  const showBottomNav = user && profile && !['seller', 'admin'].includes(profile.role);
-  const showHeader = user && profile && !['login', 'signup', 'main'].includes(currentScreen);
+  const showHeader = false; // 전역 레이아웃에서 Header 렌더링
 
   return (
     <div className="h-screen flex flex-col bg-background">
-      {/* Header - Show for all authenticated screens except login/signup/main */}
-      {showHeader && <Header />}
+      {/* Header는 전역 레이아웃에서 렌더링됨 */}
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto">
         {renderScreen()}
       </main>
 
-      {/* Bottom Navigation - Only for regular users */}
-      {showBottomNav && (
-        <BottomNavigation />
-      )}
+      {/* BottomNavigation은 전역 레이아웃에서 렌더링됨 */}
     </div>
   );
 }

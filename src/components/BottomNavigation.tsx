@@ -9,6 +9,11 @@ import { Home, Search, Heart, Calendar } from 'lucide-react';
 export function BottomNavigation() {
   const pathname = usePathname();
 
+  // 판매자 페이지에서는 하단 네비게이션 숨김
+  if (pathname.startsWith('/seller')) {
+    return null;
+  }
+
   const navItems = [
     {
       id: 'main',
@@ -37,7 +42,7 @@ export function BottomNavigation() {
   ];
 
   return (
-    <nav className="bg-card border-t flex-shrink-0">
+    <nav className="bg-card border-t flex-shrink-0 fixed bottom-0 left-0 right-0 z-40">
       <div className="flex">
         {navItems.map((item) => {
           const isActive = pathname === item.href;

@@ -3,21 +3,18 @@ import { Card, CardContent } from "../ui/card";
 import { Calendar, Timer, CheckCircle } from "lucide-react";
 
 interface ReservationStatsProps {
-  todayStats: {
-    total: number;
-    pending: number;
-    confirmed: number;
-    completed: number;
-  };
+  todayCount: number;
   pendingCount: number;
+  confirmedCompletedCount: number;
   onTodayClick: () => void;
   onPendingClick: () => void;
   onConfirmedClick: () => void;
 }
 
 export default function ReservationStats({
-  todayStats,
+  todayCount,
   pendingCount,
+  confirmedCompletedCount,
   onTodayClick,
   onPendingClick,
   onConfirmedClick,
@@ -38,7 +35,7 @@ export default function ReservationStats({
                 오늘 예약
               </p>
               <p className="text-lg md:text-xl font-semibold">
-                {todayStats.total}건
+                {todayCount}건
               </p>
             </div>
           </div>
@@ -80,7 +77,7 @@ export default function ReservationStats({
                 확정/완료
               </p>
               <p className="text-lg md:text-xl font-semibold">
-                {todayStats.confirmed + todayStats.completed}건
+                {confirmedCompletedCount}건
               </p>
             </div>
           </div>

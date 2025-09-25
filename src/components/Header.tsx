@@ -2,18 +2,22 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { AuthModal } from '@/components/auth/AuthModal';
-import { User, LogIn } from 'lucide-react';
+import { User, LogIn, Menu, X } from 'lucide-react';
 
 export function Header() {
   const { user, profile } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
+
+  // 판매자 페이지인지 확인
+  const isSellerPage = pathname.startsWith('/seller');
 
   const handleUserIconClick = () => {
     router.push('/mypage');

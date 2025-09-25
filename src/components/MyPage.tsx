@@ -24,7 +24,6 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useRouter } from 'next/navigation';
-import { BottomNavigation } from './BottomNavigation';
 
 interface MyPageProps {
   onBack: () => void;
@@ -219,8 +218,7 @@ export default function MyPage({ onBack, onLogout }: MyPageProps) {
         </div>
       </div>
       
-      {/* Bottom Navigation */}
-      <BottomNavigation />
+      {/* BottomNavigation은 전역 레이아웃에서 렌더링됨 */}
     </div>
   );
 }

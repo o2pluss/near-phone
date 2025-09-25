@@ -53,23 +53,17 @@ export default function ReservationFilters({
 }: ReservationFiltersProps) {
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center space-x-2">
-          <Filter className="h-5 w-5" />
-          <span>검색 및 필터</span>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 pt-6">
         {/* 첫 번째 행: 검색어와 상태 필터 */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <Label htmlFor="search-query">고객명/연락처 뒷번호</Label>
+            <Label htmlFor="search-query">고객명/연락처</Label>
             <Input
               id="search-query"
-              placeholder="고객명 또는 연락처 뒷번호 4자리"
+              placeholder="고객명 또는 휴대전화 뒷자리 4자"
               value={searchQuery}
               onChange={(e) => onSearchQueryChange(e.target.value)}
-              onKeyPress={onSearchKeyPress}
+              onKeyDown={onSearchKeyPress}
             />
           </div>
           <div>
@@ -94,7 +88,7 @@ export default function ReservationFilters({
         </div>
         
         {/* 두 번째 행: 날짜 필터 2열 */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="start-date">시작 날짜</Label>
             <Input

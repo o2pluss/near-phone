@@ -11,7 +11,6 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { getPhoneModels } from "../lib/phoneModels";
-import { Header } from "./Header";
 
 interface MainScreenProps {
   onSearch: () => void;
@@ -36,8 +35,6 @@ export default function MainScreen({
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
-
       {/* Hero Section */}
       <div className="bg-gradient-to-br from-blue-400 to-blue-500 text-white px-4 py-12">
         <div className="max-w-md mx-auto text-center">

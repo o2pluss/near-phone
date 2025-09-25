@@ -1,7 +1,10 @@
+"use client";
+
 import React from "react";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { Separator } from "../ui/separator";
+import Link from "next/link";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,23 +16,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "../ui/alert-dialog";
-
-interface Reservation {
-  id: string;
-  customerName: string;
-  customerPhone: string;
-  date: string;
-  time: string;
-  model: string;
-  price: number;
-  status: "pending" | "confirmed" | "completed" | "cancel_pending" | "cancelled";
-  createdAt: string;
-}
+import type { Reservation } from "../../types/reservation";
+import { getStatusInfo } from "../../utils/reservationUtils";
 
 interface ReservationCardProps {
   reservation: Reservation;
   onStatusUpdate: (reservationId: string, status: Reservation["status"]) => void;
-  onReservationDetail?: (reservation: any) => void;
   isLast?: boolean;
 }
 
@@ -42,35 +34,6 @@ const formatDateShort = (dateString: string) => {
   return `${year}.${month}.${day}`;
 };
 
-const getStatusInfo = (status: Reservation["status"]) => {
-  switch (status) {
-    case "pending":
-      return {
-        label: "대기",
-        variant: "secondary" as const,
-      };
-    case "confirmed":
-      return {
-        label: "예약 확정",
-        variant: "default" as const,
-      };
-    case "completed":
-      return {
-        label: "종료",
-        variant: "secondary" as const,
-      };
-    case "cancel_pending":
-      return {
-        label: "취소중",
-        variant: "outline" as const,
-      };
-    case "cancelled":
-      return {
-        label: "취소",
-        variant: "destructive" as const,
-      };
-  }
-};
 
 const getActionButtons = (
   reservation: Reservation,
@@ -87,14 +50,14 @@ const getActionButtons = (
               size="sm"
               className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 hover:border-emerald-300"
             >
-              수락
+              승인
             </Button>
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>예약 수락</AlertDialogTitle>
+              <AlertDialogTitle>예약 승인</AlertDialogTitle>
               <AlertDialogDescription>
-                {reservation.customerName}님의 {reservation.model} 예약을 수락하시겠습니까?
+                {reservation.customerName}님의 {reservation.model} 예약을 승인하시겠습니까?
                 <br />
                 예약일시: {formatDateShort(reservation.date)} {reservation.time}
               </AlertDialogDescription>
@@ -105,7 +68,7 @@ const getActionButtons = (
                 onClick={() => onStatusUpdate(reservation.id, "confirmed")}
                 className="bg-emerald-600 hover:bg-emerald-700"
               >
-                수락하기
+                승인하기
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -156,19 +119,19 @@ const getActionButtons = (
               size="sm"
               className="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 hover:border-blue-300"
             >
-              완료
+              종료
             </Button>
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>예약 완료</AlertDialogTitle>
+              <AlertDialogTitle>예약 종료</AlertDialogTitle>
               <AlertDialogDescription>
-                {reservation.customerName}님의 {reservation.model} 예약을 완료 처리하시겠습니까?
+                {reservation.customerName}님의 {reservation.model} 예약을 종료 처리하시겠습니까?
                 <br />
                 예약일시: {formatDateShort(reservation.date)} {reservation.time}
                 <br />
                 <span className="text-sm text-muted-foreground mt-2 block">
-                  완료된 예약은 되돌릴 수 없습니다.
+                  종료된 예약은 되돌릴 수 없습니다.
                 </span>
               </AlertDialogDescription>
             </AlertDialogHeader>
@@ -260,81 +223,57 @@ const getActionButtons = (
       break;
     case "completed":
     case "cancelled":
-      // 완료되거나 취소된 예약은 버튼 없음
+      // 종료되거나 취소된 예약은 버튼 없음
       break;
   }
   
   return buttons;
 };
 
-export default function ReservationCard({ reservation, onStatusUpdate, onReservationDetail, isLast = false }: ReservationCardProps) {
+export default function ReservationCard({ reservation, onStatusUpdate, isLast = false }: ReservationCardProps) {
+  const statusInfo = getStatusInfo(reservation.status);
   
-  // Mock data for reservation detail - 실제로는 API에서 가져올 데이터
-  const createDetailReservation = (baseReservation: Reservation) => ({
-    ...baseReservation,
-    carrier: "SKT", // 통신사
-    conditions: {
-      numberPorting: true, // 번호이동
-      newSubscription: false, // 신규가입
-      deviceChange: false, // 기기변경
-      cardDiscount: true, // 카드 할인
-      bundleDiscount: false, // 결합 할인
-      requiredPlan: "5G 프리미엄 요금제", // 필수 요금제
-      additionalServices: ["보험가입", "액세서리"], // 부가서비스
-    },
-    requestedAt: baseReservation.createdAt, // 예약 요청일
-    confirmedAt: baseReservation.status === "confirmed" || baseReservation.status === "completed" 
-      ? "2025-01-21T09:30:00" : undefined, // 예약 승인일
-    cancelRequestedAt: baseReservation.status === "cancel_pending" || baseReservation.status === "cancelled" 
-      ? "2025-01-21T11:00:00" : undefined, // 취소 요청일
-    cancelledAt: baseReservation.status === "cancelled" 
-      ? "2025-01-21T11:30:00" : undefined, // 취소 승인일
-  });
-
-  const handleCardClick = () => {
-    if (onReservationDetail) {
-      const detailReservation = createDetailReservation(reservation);
-      onReservationDetail(detailReservation);
-    }
-  };
   return (
     <div className="bg-card">
-      <div 
-        className="p-4 space-y-3 cursor-pointer hover:bg-muted/50 transition-colors"
-        onClick={handleCardClick}
-      >
+      <div className="p-4 space-y-3">
         {/* 1행: 예약일시 + 처리 버튼 */}
         <div className="flex justify-between items-center">
-          <div className="text-sm text-muted-foreground">
-            {formatDateShort(reservation.date)} {reservation.time}
-          </div>
-          <div 
-            className="flex space-x-2"
-            onClick={(e) => e.stopPropagation()} // 버튼 클릭 시 카드 클릭 이벤트 방지
+          <Link 
+            href={`/seller/reservations/${reservation.id}`}
+            className="text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
           >
+            {formatDateShort(reservation.date)} {reservation.time}
+          </Link>
+          <div className="flex space-x-2">
             {getActionButtons(reservation, onStatusUpdate)}
           </div>
         </div>
         
         {/* 2행: 예약 상태 + 고객명 + 연락처 */}
-        <div className="flex items-center space-x-2">
-          <Badge variant={getStatusInfo(reservation.status).variant}>
-            {getStatusInfo(reservation.status).label}
+        <Link 
+          href={`/seller/reservations/${reservation.id}`}
+          className="flex items-center space-x-2 hover:bg-muted/50 transition-colors cursor-pointer p-2 -m-2 rounded"
+        >
+          <Badge variant={statusInfo.variant}>
+            {statusInfo.label}
           </Badge>
           <span className="text-sm">
             {reservation.customerName} · {reservation.customerPhone}
           </span>
-        </div>
+        </Link>
         
         {/* 3행: 모델명 + 가격 */}
-        <div className="flex justify-between items-center">
+        <Link 
+          href={`/seller/reservations/${reservation.id}`}
+          className="flex justify-between items-center hover:bg-muted/50 transition-colors cursor-pointer p-2 -m-2 rounded"
+        >
           <div className="font-medium">
             {reservation.model}
           </div>
           <div className="font-semibold">
             {reservation.price.toLocaleString()}원
           </div>
-        </div>
+        </Link>
       </div>
       {/* 마지막 아이템이 아닌 경우에만 구분선 표시 */}
       {!isLast && <Separator />}

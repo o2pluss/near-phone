@@ -17,7 +17,7 @@ export const getStatusInfo = (status: Reservation["status"]): ReservationStatusI
       };
     case "completed":
       return {
-        label: "완료",
+        label: "종료",
         color: "bg-blue-500",
         variant: "secondary" as const,
       };
@@ -69,10 +69,10 @@ export const groupReservationsByDate = (
     {} as Record<string, Reservation[]>,
   );
 
-  // 날짜순으로 정렬
+  // 최신 날짜순으로 정렬
   return Object.keys(grouped)
     .sort(
-      (a, b) => new Date(a).getTime() - new Date(b).getTime(),
+      (a, b) => new Date(b).getTime() - new Date(a).getTime(),
     )
     .map((date) => ({
       date,

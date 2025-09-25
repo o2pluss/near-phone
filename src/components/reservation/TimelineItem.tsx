@@ -53,27 +53,8 @@ export default function TimelineItem({
   };
 
   const handleCancelRequest = () => {
-    if (reservation.status === "pending") {
-      // 대기 상태일 때는 바로 취소
-      const confirmCancel = window.confirm(
-        "예약을 취소하시겠습니까?\n\n대기 중인 예약이므로 즉시 취소됩니다.",
-      );
-      if (confirmCancel && onCancel) {
-        // 대기 상태에서는 바로 cancelled로 변경
-        const cancelledReservation = {
-          ...reservation,
-          status: "cancelled" as const,
-        };
-        onCancel(cancelledReservation);
-      }
-    } else if (reservation.status === "confirmed") {
-      // 확정 상태일 때는 판매점 승인 필요
-      const confirmCancel = window.confirm(
-        "예약을 취소하시겠습니까?\n\n취소 요청 후 판매점에서 승인하면 최종 취소됩니다.",
-      );
-      if (confirmCancel && onCancel) {
-        onCancel(reservation);
-      }
+    if (onCancel) {
+      onCancel(reservation);
     }
     setShowDropdown(false);
   };

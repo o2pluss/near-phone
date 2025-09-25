@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
@@ -14,7 +16,7 @@ import { maskUserName } from "../../utils/privacy";
 import { formatPrice } from "../../utils/formatPrice";
 import { getProductDisplayName } from "../../utils/productDisplay";
 
-// Mock 예약 및 리뷰 데이터 (예약 완료 건만 리뷰 보유)
+// Mock 예약 및 리뷰 데이터 (예약 종료 건만 리뷰 보유)
 const mockReservationsWithReviews: ReservationWithReview[] = [
   {
     id: "res-1",
@@ -207,7 +209,7 @@ export default function ReviewManagement({ onReviewDetail }: ReviewManagementPro
     setAppliedSortBy('newest');
   };
 
-  // 필터링된 예약 목록 (리뷰가 있는 완료 예약만)
+  // 필터링된 예약 목록 (리뷰가 있는 종료 예약만)
   const filteredReservations = maskedReservations
     .filter(reservation => reservation.review) // 리뷰가 있는 예약만
     .filter(reservation => {

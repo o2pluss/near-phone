@@ -3,12 +3,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import ReservationListHeader from "./reservation/ReservationListHeader";
 import ReservationTabContent from "./reservation/ReservationTabContent";
 import ReservationDialogs from "./reservation/ReservationDialogs";
-import { mockReservations } from "../data/mockReservations";
+import { useReservationList, useUpdateReservationStatus, useCancelReservation } from "../hooks/useReservationList";
 import {
   filterReservationsByStatus,
-  filterByDateRange,
   groupReservationsByDate,
 } from "../utils/reservationUtils";
+import { transformApiReservationsToReservations } from "../utils/reservationDataTransform";
 import type { Reservation, ReservationListProps } from "../types/reservation";
 import type { ReviewFormData } from "../types/review";
 
@@ -17,13 +17,6 @@ export default function ReservationList({
   currentTab = "upcoming",
   onTabChange,
 }: ReservationListProps = {}) {
-  const [reservations, setReservations] = useState<Reservation[]>(mockReservations);
-  const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
-  const [showCancelDialog, setShowCancelDialog] = useState(false);
-  const [showReviewForm, setShowReviewForm] = useState(false);
-  const [reviewReservation, setReviewReservation] = useState<Reservation | null>(null);
-  const [reviewSubmitting, setReviewSubmitting] = useState(false);
-  
   // 기간별 조회 상태
   const [showDateFilter, setShowDateFilter] = useState(false);
   const [tempStartDate, setTempStartDate] = useState("");
@@ -31,37 +24,68 @@ export default function ReservationList({
   const [appliedStartDate, setAppliedStartDate] = useState("");
   const [appliedEndDate, setAppliedEndDate] = useState("");
 
+  // API 훅 사용 (페이지네이션 지원)
+  const { 
+    data, 
+    isLoading, 
+    error, 
+    fetchNextPage, 
+    hasNextPage, 
+    isFetchingNextPage 
+  } = useReservationList({
+    userId: '00000000-0000-0000-0000-000000000001',
+    limit: 15, // 기본 페이지 크기
+    startDate: appliedStartDate,
+    endDate: appliedEndDate
+  });
+
+  const updateReservationStatus = useUpdateReservationStatus();
+  const cancelReservation = useCancelReservation();
+  
+  // 모든 페이지의 데이터를 합쳐서 Reservation 타입으로 변환
+  const allApiReservations = data?.pages.flatMap(page => page.items) || [];
+  const reservations = transformApiReservationsToReservations(allApiReservations);
+  
+  // 디버깅을 위한 로그
+  console.log('API reservations:', allApiReservations);
+  
+  // 변환된 예약 데이터 로그
+  console.log('Transformed reservations:', reservations);
+  
+  const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [reviewReservation, setReviewReservation] = useState<Reservation | null>(null);
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+
   // 예약 취소 처리
-  const handleCancelReservation = (reservationId: string) => {
-    setReservations(
-      reservations.map((res) =>
-        res.id === reservationId
-          ? { ...res, status: "cancel_pending" as const }
-          : res,
-      ),
-    );
-    setShowCancelDialog(false);
-    setSelectedReservation(null);
+  const handleCancelReservation = async (reservationId: string) => {
+    try {
+      const reservation = selectedReservation;
+      if (!reservation) return;
+
+      if (reservation.status === "pending") {
+        await updateReservationStatus.mutateAsync({
+          reservationId: reservation.id,
+          status: "cancelled"
+        });
+      } else if (reservation.status === "confirmed") {
+        await updateReservationStatus.mutateAsync({
+          reservationId: reservation.id,
+          status: "cancel_pending"
+        });
+      }
+      
+      setShowCancelDialog(false);
+      setSelectedReservation(null);
+    } catch (error) {
+      alert('예약 상태 변경에 실패했습니다. 다시 시도해주세요.');
+    }
   };
 
   const handleCancelAction = (reservation: Reservation) => {
-    if (reservation.status === "pending") {
-      setReservations((prev) =>
-        prev.map((res) =>
-          res.id === reservation.id
-            ? { ...res, status: "cancelled" as const }
-            : res,
-        ),
-      );
-    } else if (reservation.status === "confirmed") {
-      setReservations((prev) =>
-        prev.map((res) =>
-          res.id === reservation.id
-            ? { ...res, status: "cancel_pending" as const }
-            : res,
-        ),
-      );
-    }
+    setSelectedReservation(reservation);
+    setShowCancelDialog(true);
   };
 
   // 리뷰 작성 처리
@@ -110,25 +134,47 @@ export default function ReservationList({
     setAppliedEndDate("");
   };
 
-  // 예약 데이터 필터링 및 그룹화
-  const allUpcomingReservations = filterReservationsByStatus(reservations, "upcoming");
-  const allPastReservations = filterReservationsByStatus(reservations, "past");
-
-  const upcomingReservations = filterByDateRange(
-    allUpcomingReservations,
-    appliedStartDate,
-    appliedEndDate
-  );
-  const pastReservations = filterByDateRange(
-    allPastReservations,
-    appliedStartDate,
-    appliedEndDate
-  );
+  // 예약 데이터 필터링 및 그룹화 (서버에서 이미 날짜 필터링됨)
+  const upcomingReservations = filterReservationsByStatus(reservations, "upcoming");
+  const pastReservations = filterReservationsByStatus(reservations, "past");
 
   const upcomingGrouped = groupReservationsByDate(upcomingReservations);
   const pastGrouped = groupReservationsByDate(pastReservations);
 
   const totalFilteredCount = upcomingReservations.length + pastReservations.length;
+
+  // 로딩 상태 처리
+  if (isLoading) {
+    return (
+      <div className="h-full flex flex-col bg-white">
+        <div className="flex-1 overflow-y-auto">
+          <div className="container mx-auto p-4 space-y-6">
+            <div className="text-center py-12">
+              <div className="text-lg text-muted-foreground">예약 목록을 불러오는 중...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 에러 상태 처리
+  if (error) {
+    return (
+      <div className="h-full flex flex-col bg-white">
+        <div className="flex-1 overflow-y-auto">
+          <div className="container mx-auto p-4 space-y-6">
+            <div className="text-center py-12">
+              <div className="text-lg text-red-600">예약 목록을 불러올 수 없습니다.</div>
+              <div className="text-sm text-muted-foreground mt-2">
+                {error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.'}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex flex-col bg-white">
@@ -169,6 +215,9 @@ export default function ReservationList({
                 tabType="upcoming"
                 onStoreSelect={onStoreSelect}
                 onCancel={handleCancelAction}
+                hasNextPage={hasNextPage}
+                isFetchingNextPage={isFetchingNextPage}
+                onLoadMore={() => fetchNextPage()}
               />
             </TabsContent>
 
@@ -178,6 +227,9 @@ export default function ReservationList({
                 tabType="past"
                 onStoreSelect={onStoreSelect}
                 onWriteReview={handleWriteReview}
+                hasNextPage={hasNextPage}
+                isFetchingNextPage={isFetchingNextPage}
+                onLoadMore={() => fetchNextPage()}
               />
             </TabsContent>
           </Tabs>

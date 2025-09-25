@@ -49,7 +49,12 @@ export default function ReservationDialogs({
           <DialogHeader>
             <DialogTitle>예약 취소</DialogTitle>
             <DialogDescription>
-              정말로 예약을 취소하시겠습니까?
+              {selectedReservation?.status === "pending" 
+                ? "대기 중인 예약이므로 즉시 취소됩니다. 정말로 예약을 취소하시겠습니까?"
+                : selectedReservation?.status === "confirmed"
+                ? "확정된 예약입니다. 취소 요청 후 판매점에서 승인하면 최종 취소됩니다. 정말로 취소 요청을 하시겠습니까?"
+                : "정말로 예약을 취소하시겠습니까?"
+              }
             </DialogDescription>
           </DialogHeader>
 
@@ -98,7 +103,10 @@ export default function ReservationDialogs({
                 onConfirmCancel(selectedReservation.id)
               }
             >
-              예약 취소
+              {selectedReservation?.status === "confirmed" 
+                ? "취소 요청" 
+                : "예약 취소"
+              }
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -79,36 +79,7 @@ export default function ReservationListHeader({
               onStartDateChange={onTempStartDateChange}
               onEndDateChange={onTempEndDateChange}
               onSearch={onDateSearch}
-              label="예약 날짜 범위"
             />
-            
-            {/* 현재 적용된 필터 정보 표시 */}
-            {hasDateFilter && (
-              <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm">
-                    <span className="font-medium text-blue-800">적용된 필터:</span>
-                    <div className="text-blue-700 mt-1">
-                      {appliedStartDate && appliedEndDate ? (
-                        `${appliedStartDate} ~ ${appliedEndDate}`
-                      ) : appliedStartDate ? (
-                        `${appliedStartDate} 이후`
-                      ) : (
-                        `${appliedEndDate} 이전`
-                      )}
-                    </div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={onDateFilterReset}
-                    className="text-blue-600 hover:text-blue-800 hover:bg-blue-100"
-                  >
-                    필터 해제
-                  </Button>
-                </div>
-              </div>
-            )}
           </Card>
         </CollapsibleContent>
       </Collapsible>

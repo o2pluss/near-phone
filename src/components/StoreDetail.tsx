@@ -7,15 +7,6 @@ import {
 } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
-import { Input } from "./ui/input";
-import { Label } from "./ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "./ui/select";
 import {
   Dialog,
   DialogContent,
@@ -23,9 +14,9 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "./ui/dialog";
-import { useForm, Controller } from "react-hook-form";
+import { useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Star,
@@ -34,7 +25,6 @@ import {
   Clock,
   Heart,
   Calendar,
-  User,
   Smartphone,
   Share,
   ChevronLeft,
@@ -43,6 +33,8 @@ import {
 } from "lucide-react";
 import { getConditionStyle } from "../lib/conditionStyles";
 import ReviewList from "./ReviewList";
+import ReservationModal from "./reservation/ReservationModal";
+import ReservationSuccessDialog from "./reservation/ReservationSuccessDialog";
 import type { ReviewWithUser, ReviewStats } from "../types/review";
 import { formatPrice } from "../utils/formatPrice";
 import { useReviews, useStoreProducts, useStore } from "@/hooks/useApi";
@@ -76,8 +68,6 @@ interface ReservationFormData {
   time: string;
   name: string;
   phone: string;
-  model: string;
-  price: number;
 }
 
 interface StoreDetailProps {
@@ -93,6 +83,7 @@ export default function StoreDetail({
   onBack,
   hideConditionsAndBooking,
 }: StoreDetailProps) {
+  const queryClient = useQueryClient();
   const productsQuery = useStoreProducts({ storeId }, { enabled: !!storeId });
   const reviewsQuery = useReviews({ storeId }, { enabled: !!storeId });
   const storeQuery = useStore(storeId, { enabled: !!storeId });
@@ -132,12 +123,9 @@ export default function StoreDetail({
 
 
   const [isFavorite, setIsFavorite] = useState(false);
-  const [isReservationOpen, setIsReservationOpen] =
-    useState(false);
-  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
-  const [reservationData, setReservationData] =
-    useState<ReservationFormData | null>(null);
+  const [isReservationOpen, setIsReservationOpen] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [showReservationSuccess, setShowReservationSuccess] = useState(false);
   
   // 리뷰 상태 관리
   const [userReview, setUserReview] = useState<ReviewWithUser | null>(null);
@@ -145,6 +133,7 @@ export default function StoreDetail({
 
   // 현재 사용자 ID (실제로는 auth store에서 가져와야 함)
   const currentUserId = "user-1";
+  const router = useRouter();
   
   // 현재 사용자가 작성한 리뷰 찾기 (API 데이터만 사용)
   React.useEffect(() => {
@@ -157,55 +146,15 @@ export default function StoreDetail({
     }
   }, [reviewsQuery.data, currentUserId]);
 
-  const {
-    register,
-    control,
-    handleSubmit,
-    formState: { errors },
-    watch,
-  } = useForm<ReservationFormData>({
-    defaultValues: {
-      name: "김고객",
-      phone: "010-1234-5678",
-      model: store.model,
-      price: store.price,
-    },
-  });
-
-  const selectedDate = watch("date");
-  const selectedTime = watch("time");
 
   const toggleFavorite = () => {
     setIsFavorite(!isFavorite);
   };
 
-  const onReservationSubmit = (data: ReservationFormData) => {
-    setReservationData(data);
-    setIsReservationOpen(false);
-    setIsConfirmOpen(true);
+  const handleReservationSuccess = () => {
+    setShowReservationSuccess(true);
   };
 
-  const confirmReservation = async () => {
-    try {
-      await fetch('/api/reservations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: '00000000-0000-0000-0000-000000000001',
-          store_id: storeId,
-          reservation_date: reservationData?.date,
-          reservation_time: reservationData?.time,
-          customer_name: reservationData?.name,
-          customer_phone: reservationData?.phone,
-          memo: '',
-        }),
-      });
-      setIsConfirmOpen(false);
-      alert('예약이 완료되었습니다! 매장에서 연락드릴 예정입니다.');
-    } catch (e) {
-      alert('예약 처리 중 오류가 발생했습니다.');
-    }
-  };
 
   // Image slider functions
   const hasImages = store.images && store.images.length > 0;
@@ -226,27 +175,6 @@ export default function StoreDetail({
     }
   };
 
-  // Generate available time slots
-  const generateTimeSlots = (date: string) => {
-    const slots = [];
-    const isWeekend =
-      new Date(date).getDay() === 0 ||
-      new Date(date).getDay() === 6;
-    const startHour = isWeekend ? 10 : 9;
-    const endHour = isWeekend ? 20 : 21;
-
-    for (let hour = startHour; hour < endHour; hour++) {
-      slots.push(`${hour.toString().padStart(2, "0")}:00`);
-      if (hour < endHour - 1) {
-        slots.push(`${hour.toString().padStart(2, "0")}:30`);
-      }
-    }
-    return slots;
-  };
-
-  const availableTimeSlots = selectedDate
-    ? generateTimeSlots(selectedDate)
-    : [];
 
   // 로딩 상태 처리
   if (storeQuery.isLoading || productsQuery.isLoading) {
@@ -254,7 +182,6 @@ export default function StoreDetail({
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#FAFAFA' }}>
         <div className="text-center">
           <div className="text-lg text-muted-foreground">매장 정보를 불러오는 중...</div>
-          <div className="text-sm text-muted-foreground mt-2">storeId: {storeId}</div>
         </div>
       </div>
     );
@@ -266,7 +193,6 @@ export default function StoreDetail({
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#FAFAFA' }}>
         <div className="text-center">
           <div className="text-lg text-red-600">매장 정보를 불러올 수 없습니다.</div>
-          <div className="text-sm text-muted-foreground mt-2">storeId: {storeId}</div>
           <Button onClick={onBack} className="mt-4">
             돌아가기
           </Button>
@@ -531,144 +457,13 @@ export default function StoreDetail({
         <div className="sticky bottom-0 border-t p-4" style={{ backgroundColor: '#FAFAFA' }}>
           <div className="flex space-x-3">
             <div className="flex space-x-2">
-              <Dialog
-                open={isReservationOpen}
+              <ReservationModal
+                store={store}
+                firstProduct={firstProduct}
+                isOpen={isReservationOpen}
                 onOpenChange={setIsReservationOpen}
-              >
-                <DialogTrigger asChild>
-                  <Button className="flex-1 bg-green-600 hover:bg-green-700">
-                    예약하기
-                  </Button>
-                </DialogTrigger>
-
-              <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                  <DialogTitle>매장 예약</DialogTitle>
-                  <DialogDescription>
-                    방문 일정을 선택해주세요
-                  </DialogDescription>
-                </DialogHeader>
-
-                <form
-                  onSubmit={handleSubmit(onReservationSubmit)}
-                  className="space-y-4"
-                >
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="date">날짜</Label>
-                      <Input
-                        id="date"
-                        type="date"
-                        min={
-                          new Date().toISOString().split("T")[0]
-                        }
-                        {...register("date", {
-                          required: "날짜를 선택해주세요",
-                        })}
-                      />
-                      {errors.date && (
-                        <p className="text-sm text-destructive">
-                          {errors.date.message}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="time">시간</Label>
-                      <Controller
-                        name="time"
-                        control={control}
-                        rules={{
-                          required: "시간을 선택해주세요",
-                        }}
-                        render={({ field }) => (
-                          <Select
-                            onValueChange={field.onChange}
-                            value={field.value}
-                            disabled={!selectedDate}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="시간 선택" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {availableTimeSlots.map((time) => (
-                                <SelectItem
-                                  key={time}
-                                  value={time}
-                                >
-                                  {time}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        )}
-                      />
-                      {errors.time && (
-                        <p className="text-sm text-destructive">
-                          {errors.time.message}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="name">이름</Label>
-                    <div className="relative">
-                      <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        id="name"
-                        placeholder="이름을 입력하세요"
-                        className="pl-10"
-                        {...register("name", {
-                          required: "이름을 입력해주세요",
-                        })}
-                      />
-                    </div>
-                    {errors.name && (
-                      <p className="text-sm text-destructive">
-                        {errors.name.message}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">연락처</Label>
-                    <div className="relative">
-                      <Phone className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        id="phone"
-                        placeholder="연락처를 입력하세요"
-                        className="pl-10"
-                        {...register("phone", {
-                          required: "연락처를 입력해주세요",
-                        })}
-                      />
-                    </div>
-                    {errors.phone && (
-                      <p className="text-sm text-destructive">
-                        {errors.phone.message}
-                      </p>
-                    )}
-                  </div>
-
-                  <DialogFooter>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setIsReservationOpen(false)}
-                    >
-                      취소
-                    </Button>
-                    <Button
-                      type="submit"
-                      className="bg-green-600 hover:bg-green-700"
-                    >
-                      예약 신청
-                    </Button>
-                  </DialogFooter>
-                </form>
-              </DialogContent>
-            </Dialog>
+                onReservationSuccess={handleReservationSuccess}
+              />
 
             {/* 리뷰 버튼 */}
             {userReview ? (
@@ -696,100 +491,6 @@ export default function StoreDetail({
         </div>
       )}
 
-      {/* Confirmation Dialog - 예약에서 온 경우에도 표시 */}
-      {!hideConditionsAndBooking && (
-        <Dialog
-          open={isConfirmOpen}
-          onOpenChange={setIsConfirmOpen}
-        >
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>예약 확인</DialogTitle>
-              <DialogDescription>
-                예약 정보를 확인해주세요
-              </DialogDescription>
-            </DialogHeader>
-
-            {reservationData && (
-              <div className="space-y-4">
-                <div className="border rounded-lg p-4 space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">
-                      매장
-                    </span>
-                    <span className="font-medium">
-                      {store.name}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">
-                      날짜
-                    </span>
-                    <span className="font-medium">
-                      {reservationData.date}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">
-                      시간
-                    </span>
-                    <span className="font-medium">
-                      {reservationData.time}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">
-                      이름
-                    </span>
-                    <span className="font-medium">
-                      {reservationData.name}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">
-                      연락처
-                    </span>
-                    <span className="font-medium">
-                      {reservationData.phone}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">
-                      상품
-                    </span>
-                    <span className="font-medium">
-                      {reservationData.model}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">
-                      할인가
-                    </span>
-                    <span className="font-medium text-blue-600">
-                      {formatPrice(reservationData.price)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setIsConfirmOpen(false)}
-              >
-                수정
-              </Button>
-              <Button
-                onClick={confirmReservation}
-                className="bg-green-600 hover:bg-green-700"
-              >
-                예약 확정
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
 
       {/* User Review Dialog */}
       <Dialog open={showUserReview} onOpenChange={setShowUserReview}>
@@ -863,6 +564,12 @@ export default function StoreDetail({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* 예약 완료 다이얼로그 */}
+      <ReservationSuccessDialog
+        isOpen={showReservationSuccess}
+        onOpenChange={setShowReservationSuccess}
+      />
     </div>
   );
 }
