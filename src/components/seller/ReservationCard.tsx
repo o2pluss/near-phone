@@ -141,7 +141,7 @@ const getActionButtons = (
                 onClick={() => onStatusUpdate(reservation.id, "completed")}
                 className="bg-blue-600 hover:bg-blue-700"
               >
-                완료 처리
+                종료 처리
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

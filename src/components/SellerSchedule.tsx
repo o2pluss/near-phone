@@ -98,7 +98,7 @@ export default function SellerSchedule({
     });
   };
 
-  // 당일 예약 필터링 (확정된 예약과 완료된 예약)
+  // 당일 예약 필터링 (확정된 예약과 종료된 예약)
   let todayConfirmedReservations = reservations.filter(
     (r) => r.date === today && (r.status === "confirmed" || r.status === "completed"),
   );
@@ -136,7 +136,7 @@ export default function SellerSchedule({
     );
   };
 
-  // 예약 상태 업데이트 핸들러 (완료 처리만)
+  // 예약 상태 업데이트 핸들러 (종료 처리만)
   const handleStatusUpdate = async (reservationId: string, newStatus: string) => {
     console.log('예약 상태 업데이트 시도:', { reservationId, newStatus });
     try {
@@ -331,7 +331,7 @@ export default function SellerSchedule({
                               {reservation.model}
                             </div>
 
-                            {/* 가격 및 완료 버튼 */}
+                            {/* 가격 및 종료 버튼 */}
                             <div className="flex items-center justify-between">
                               <span className={`font-bold ${
                                 reservation.status === 'completed' 
@@ -491,7 +491,7 @@ export default function SellerSchedule({
                                       {reservation.model}
                                     </div>
 
-                                    {/* 가격 및 완료 버튼 */}
+                                    {/* 가격 및 종료 버튼 */}
                                     <div className="flex items-center justify-between">
                                       <span className={`text-sm ${
                                         reservation.status === 'completed' 

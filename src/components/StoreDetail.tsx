@@ -479,7 +479,7 @@ export default function StoreDetail({
                 variant="outline"
                 onClick={() => {
                   // 리뷰 작성 페이지로 이동하는 로직
-                  alert("리뷰 작성 기능은 예약 완료 후 이용 가능합니다.");
+                  alert("리뷰 작성 기능은 예약 종료 후 이용 가능합니다.");
                 }}
                 className="flex-1"
               >
@@ -565,7 +565,7 @@ export default function StoreDetail({
         </DialogContent>
       </Dialog>
 
-      {/* 예약 완료 다이얼로그 */}
+      {/* 예약 종료 다이얼로그 */}
       <ReservationSuccessDialog
         isOpen={showReservationSuccess}
         onOpenChange={setShowReservationSuccess}

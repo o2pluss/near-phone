@@ -59,7 +59,7 @@ export interface ReservationWithReview {
     phone: string;
   };
   
-  // 리뷰 정보 (완료된 예약에만 있을 수 있음)
+  // 리뷰 정보 (종료된 예약에만 있을 수 있음)
   review?: Review;
 }
 

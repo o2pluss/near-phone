@@ -20,7 +20,7 @@ interface Reservation {
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'cancel_pending';
   createdAt: string;
   conditions: string[];
-  review?: Review; // 완료된 예약에 리뷰가 있을 수 있음
+  review?: Review; // 종료된 예약에 리뷰가 있을 수 있음
 }
 
 interface CreateReservationData {

@@ -341,7 +341,7 @@ export default function ReviewManagement({}: ReviewManagementProps) {
     setAppliedStoreFilter('all');
   };
 
-  // 필터링된 예약 목록 (리뷰가 있는 완료 예약만)
+  // 필터링된 예약 목록 (리뷰가 있는 종료 예약만)
   const filteredReservations = adminReservations
     .filter(reservation => reservation.review) // 리뷰가 있는 예약만
     .filter(reservation => {

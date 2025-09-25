@@ -74,7 +74,7 @@ export default function ReservationStats({
             </div>
             <div className="text-center md:text-left flex-1">
               <p className="text-xs md:text-sm text-muted-foreground">
-                확정/완료
+                확정/종료
               </p>
               <p className="text-lg md:text-xl font-semibold">
                 {confirmedCompletedCount}건
