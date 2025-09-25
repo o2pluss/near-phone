@@ -26,7 +26,6 @@ import {
 } from "lucide-react";
 import KakaoLoginButton from "./KakaoLoginButton";
 import { useAuth } from "@/contexts/AuthContext";
-import KakaoDebug from "./KakaoDebug";
 
 interface LoginFormData {
   email: string;
@@ -109,7 +108,6 @@ export default function LoginScreen({
               className="space-y-4 mt-6"
             >
               <div className="text-center space-y-4">
-                <KakaoDebug />
                 <div className="space-y-3">
                   <KakaoLoginButton
                     onSuccess={handleKakaoLoginSuccess}
