@@ -233,6 +233,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          data: {
+            role: userData?.role || 'user', // raw_user_meta_data에 role 추가
+            name: userData?.name || null,
+            phone: userData?.phone || null,
+          }
+        }
       });
 
       if (error) return { error };
@@ -289,44 +296,69 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInWithKakao = async (kakaoUserInfo: { id: string; nickname: string; profile_image?: string }) => {
     try {
+      console.log('signInWithKakao 시작:', kakaoUserInfo);
       const email = `kakao_${kakaoUserInfo.id}@kakao.local`;
       // 고정 비밀번호 전략 (서버 환경변수로 솔트 가능)
       const stablePassword = `kakao_${kakaoUserInfo.id}_oauth_password`;
+      console.log('카카오 로그인 시도 - 이메일:', email);
 
       // 1) 먼저 로그인 시도
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password: stablePassword,
       });
+      console.log('카카오 로그인 시도 결과:', { signInError });
 
       if (!signInError) {
-        // 프로필 upsert (보조 동기화)
-        await supabase
-          .from('profiles')
-          .upsert({
-            user_id: (await supabase.auth.getUser()).data.user?.id as string,
-            role: 'user',
-            name: kakaoUserInfo.nickname,
-            phone: null,
-            login_type: 'kakao',
-            is_active: true,
-          }, { onConflict: 'user_id' });
+        console.log('카카오 로그인 성공, 프로필 업데이트 시작');
+        // 프로필 upsert (보조 동기화) - login_type 강제 업데이트
+        const { data: currentUser } = await supabase.auth.getUser();
+        console.log('현재 사용자 정보:', currentUser.user?.id);
+        
+        if (currentUser.user) {
+          console.log('프로필 upsert 시작');
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .upsert({
+              user_id: currentUser.user.id,
+              role: 'user',
+              name: kakaoUserInfo.nickname,
+              phone: null,
+              login_type: 'kakao',
+              is_active: true,
+              updated_at: new Date().toISOString(),
+            }, { 
+              onConflict: 'user_id',
+              ignoreDuplicates: false // 기존 데이터도 업데이트
+            });
+          
+          if (profileError) {
+            console.error('카카오 프로필 업데이트 오류:', profileError);
+          } else {
+            console.log('카카오 프로필 업데이트 성공');
+          }
+        } else {
+          console.log('현재 사용자 정보 없음');
+        }
         return { error: null };
       }
 
       // 2) 존재하지 않거나 비밀번호 불일치 → 동일 비밀번호로 가입 시도
       if (signInError && signInError.message?.includes('Invalid login credentials')) {
+        console.log('카카오 계정이 없음, 새 계정 생성 시도');
         const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
           email,
           password: stablePassword,
           options: {
             data: {
+              role: 'user', // raw_user_meta_data에 role 추가
               name: kakaoUserInfo.nickname,
               profile_image: kakaoUserInfo.profile_image,
               login_type: 'kakao',
             },
           },
         });
+        console.log('카카오 계정 생성 결과:', { signUpData: !!signUpData, signUpError });
 
         // 이미 존재(422) 또는 기타 제약 발생 시 재로그인 시도
         if (signUpError) {
@@ -340,6 +372,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         // 프로필 upsert
         if (signUpData?.user) {
+          console.log('카카오 프로필 생성 시작 - 사용자 ID:', signUpData.user.id);
           const { error: profileError } = await supabase
             .from('profiles')
             .upsert({
@@ -349,12 +382,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               phone: null,
               login_type: 'kakao',
               is_active: true,
-            }, { onConflict: 'user_id' });
+              updated_at: new Date().toISOString(),
+            }, { 
+              onConflict: 'user_id',
+              ignoreDuplicates: false // 기존 데이터도 업데이트
+            });
 
           if (profileError) {
             console.error('카카오 프로필 upsert 오류:', profileError);
             // 프로필 오류는 로그인 자체를 막지 않음
+          } else {
+            console.log('카카오 프로필 생성/업데이트 성공');
           }
+        } else {
+          console.log('signUpData.user가 없음');
         }
 
         return { error: null };

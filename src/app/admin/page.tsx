@@ -3,10 +3,10 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import StoreSearchScreen from '@/components/StoreSearchScreen';
+import AdminDashboard from '@/components/AdminDashboard';
 import { Loader2 } from 'lucide-react';
 
-export default function SearchPage() {
+export default function AdminPage() {
   const router = useRouter();
   const { user, profile, loading } = useAuth();
 
@@ -16,13 +16,8 @@ export default function SearchPage() {
       return;
     }
 
-    if (!loading && profile && profile.role !== 'user' && profile.role !== 'admin') {
-      // 사용자 권한이 없는 경우
-      if (profile.role === 'seller') {
-        router.push('/seller');
-      } else {
-        router.push('/unauthorized');
-      }
+    if (!loading && profile && profile.role !== 'admin') {
+      router.push('/unauthorized');
     }
   }, [user, profile, loading, router]);
 
@@ -41,22 +36,9 @@ export default function SearchPage() {
     return null; // 리다이렉트 중
   }
 
-  if (profile.role !== 'user' && profile.role !== 'admin') {
+  if (profile.role !== 'admin') {
     return null; // 리다이렉트 중
   }
 
-  const handleStoreSelect = (store: any) => {
-    router.push(`/detail/${store.id}`);
-  };
-
-  const handleBack = () => {
-    router.push('/main');
-  };
-
-  return (
-    <StoreSearchScreen 
-      onStoreSelect={handleStoreSelect}
-      onBack={handleBack}
-    />
-  );
+  return <AdminDashboard />;
 }

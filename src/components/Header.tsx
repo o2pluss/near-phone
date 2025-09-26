@@ -1,26 +1,27 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { AuthModal } from '@/components/auth/AuthModal';
-import { User, LogIn, Menu, X } from 'lucide-react';
+import { User, LogIn } from 'lucide-react';
 
 export function Header() {
   const { user, profile } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
 
   // 판매자 페이지인지 확인
   const isSellerPage = pathname.startsWith('/seller');
 
   const handleUserIconClick = () => {
     router.push('/mypage');
+  };
+
+  const handleLoginClick = () => {
+    router.push('/auth/login');
   };
 
   const getInitials = (name: string) => {
@@ -61,10 +62,7 @@ export function Header() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => {
-                  setAuthMode('login');
-                  setShowAuthModal(true);
-                }}
+                onClick={handleLoginClick}
               >
                 <LogIn className="mr-2 h-4 w-4" />
                 로그인
@@ -73,13 +71,6 @@ export function Header() {
           </div>
         </div>
       </header>
-
-      <AuthModal
-        isOpen={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
-        defaultMode={authMode}
-        onSuccess={() => setShowAuthModal(false)}
-      />
     </>
   );
 }

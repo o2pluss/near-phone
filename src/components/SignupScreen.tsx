@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -17,13 +17,34 @@ interface SellerSignupFormData {
 }
 
 interface SignupScreenProps {
-  onBack: () => void;
-  onSignup: (role: 'user' | 'seller') => void;
+  onBack?: () => void;
+  onSignup?: (role: 'user' | 'seller') => void;
 }
 
 export default function SignupScreen({ onBack, onSignup }: SignupScreenProps) {
-  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(() => {
+    // localStorage에서 isSubmitted 상태 복원
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('signupSubmitted') === 'true';
+    }
+    return false;
+  });
+  const isSubmittedRef = useRef(isSubmitted);
   const { register, handleSubmit, formState: { errors } } = useForm<SellerSignupFormData>();
+
+  // isSubmitted 상태 변경 추적 및 localStorage 저장
+  useEffect(() => {
+    console.log('isSubmitted 상태 변경:', isSubmitted);
+    isSubmittedRef.current = isSubmitted;
+    
+    if (typeof window !== 'undefined') {
+      if (isSubmitted) {
+        localStorage.setItem('signupSubmitted', 'true');
+      } else {
+        localStorage.removeItem('signupSubmitted');
+      }
+    }
+  }, [isSubmitted]);
 
   const [isLoading, setIsLoading] = useState(false);
 
@@ -32,10 +53,20 @@ export default function SignupScreen({ onBack, onSignup }: SignupScreenProps) {
     setIsLoading(true);
     
     try {
-      // 1. 먼저 사용자 계정 생성
+      // 1. 먼저 사용자 계정 생성 (자동 로그인 방지)
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: data.email,
         password: data.password,
+        options: {
+          data: {
+            role: 'seller',
+            name: data.name,
+            phone: data.phone,
+            business_name: data.storeName,
+            business_number: data.businessNumber
+          },
+          emailRedirectTo: undefined // 이메일 확인 없이 진행
+        }
       });
 
       if (authError) {
@@ -49,7 +80,23 @@ export default function SignupScreen({ onBack, onSignup }: SignupScreenProps) {
         return;
       }
 
-      // 2. 판매자 신청 데이터 저장
+      // 2. 프로필 생성 (RPC 함수 사용)
+      const { error: profileError } = await supabase.rpc('upsert_profile', {
+        p_user_id: authData.user.id,
+        p_role: 'seller',
+        p_name: data.name,
+        p_phone: data.phone,
+        p_login_type: 'email',
+        p_is_active: false, // 승인 전까지 비활성화
+      });
+
+      if (profileError) {
+        console.error('프로필 생성 실패:', profileError);
+        alert('프로필 생성에 실패했습니다: ' + profileError.message);
+        return;
+      }
+
+      // 3. 판매자 신청 데이터 저장
       const { error: applicationError } = await supabase
         .from('seller_applications')
         .insert({
@@ -70,7 +117,18 @@ export default function SignupScreen({ onBack, onSignup }: SignupScreenProps) {
         return;
       }
 
-      setIsSubmitted(true);
+      // 4. 회원가입 후 즉시 로그아웃 (자동 로그인 방지)
+      console.log('회원가입 성공, 로그아웃 시작');
+      
+      // 상태를 먼저 업데이트 (함수형 업데이트 사용)
+      setIsSubmitted(prev => {
+        console.log('isSubmitted 함수형 업데이트, 이전 값:', prev, '새 값: true');
+        return true;
+      });
+      
+      // 즉시 로그아웃
+      await supabase.auth.signOut();
+      console.log('로그아웃 완료');
     } catch (error) {
       console.error('판매자 신청 오류:', error);
       alert('신청 중 오류가 발생했습니다.');
@@ -79,13 +137,14 @@ export default function SignupScreen({ onBack, onSignup }: SignupScreenProps) {
     }
   };
 
-  if (isSubmitted) {
+  console.log('SignupScreen 렌더링, isSubmitted:', isSubmitted, 'ref:', isSubmittedRef.current);
+
+  // isSubmitted가 true이면 즉시 완료 화면 표시 (ref도 확인)
+  if (isSubmitted || isSubmittedRef.current) {
+    console.log('가입 신청 완료 화면 표시');
     return (
       <div className="min-h-screen flex items-center justify-center p-4 bg-background">
         <div className="w-full max-w-md text-center space-y-6">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-green-500" style={{ color: '#FAFAFA' }}>
-            <Store className="h-6 w-6" />
-          </div>
           <div>
             <h1 className="text-2xl font-semibold mb-2">가입 신청 완료</h1>
             <p className="text-muted-foreground">
@@ -100,7 +159,21 @@ export default function SignupScreen({ onBack, onSignup }: SignupScreenProps) {
               승인 결과는 등록하신 이메일로 안내드립니다.
             </p>
           </div>
-          <Button onClick={onBack} className="w-full">
+          <Button 
+            onClick={() => {
+              // localStorage 클리어
+              if (typeof window !== 'undefined') {
+                localStorage.removeItem('signupSubmitted');
+              }
+              
+              if (onBack) {
+                onBack();
+              } else {
+                window.location.href = '/auth/login';
+              }
+            }} 
+            className="w-full"
+          >
             로그인 화면으로 돌아가기
           </Button>
         </div>
@@ -116,12 +189,8 @@ export default function SignupScreen({ onBack, onSignup }: SignupScreenProps) {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="flex items-center space-x-2">
-            <Store className="h-5 w-5 text-blue-600" />
             <div>
               <h1 className="text-2xl font-semibold">판매자 회원가입</h1>
-              <p className="text-muted-foreground">
-                매장 정보를 입력하여 가입하세요
-              </p>
             </div>
           </div>
         </div>
@@ -130,11 +199,9 @@ export default function SignupScreen({ onBack, onSignup }: SignupScreenProps) {
             <div className="space-y-2">
               <Label htmlFor="seller-name">이름</Label>
               <div className="relative">
-                <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="seller-name"
                   placeholder="이름을 입력하세요"
-                  className="pl-10"
                   {...register('name', {
                     required: '이름을 입력해주세요'
                   })}
@@ -150,12 +217,10 @@ export default function SignupScreen({ onBack, onSignup }: SignupScreenProps) {
             <div className="space-y-2">
               <Label htmlFor="seller-email">이메일</Label>
               <div className="relative">
-                <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="seller-email"
                   type="email"
                   placeholder="이메일을 입력하세요"
-                  className="pl-10"
                   {...register('email', {
                     required: '이메일을 입력해주세요',
                     pattern: {
@@ -175,12 +240,10 @@ export default function SignupScreen({ onBack, onSignup }: SignupScreenProps) {
             <div className="space-y-2">
               <Label htmlFor="seller-password">비밀번호</Label>
               <div className="relative">
-                <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="seller-password"
                   type="password"
                   placeholder="비밀번호를 입력하세요 (최소 6자)"
-                  className="pl-10"
                   {...register('password', {
                     required: '비밀번호를 입력해주세요',
                     minLength: {
@@ -200,11 +263,9 @@ export default function SignupScreen({ onBack, onSignup }: SignupScreenProps) {
             <div className="space-y-2">
               <Label htmlFor="store-name">매장명</Label>
               <div className="relative">
-                <Store className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="store-name"
                   placeholder="매장명을 입력하세요"
-                  className="pl-10"
                   {...register('storeName', {
                     required: '매장명을 입력해주세요'
                   })}
@@ -220,11 +281,9 @@ export default function SignupScreen({ onBack, onSignup }: SignupScreenProps) {
             <div className="space-y-2">
               <Label htmlFor="seller-phone">연락처</Label>
               <div className="relative">
-                <Phone className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="seller-phone"
-                  placeholder="연락처를 입력하세요"
-                  className="pl-10"
+                  placeholder="개인 연락처"
                   {...register('phone', {
                     required: '연락처를 입력해주세요'
                   })}
@@ -240,11 +299,9 @@ export default function SignupScreen({ onBack, onSignup }: SignupScreenProps) {
             <div className="space-y-2">
               <Label htmlFor="business-number">사업자등록번호</Label>
               <div className="relative">
-                <Building className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="business-number"
-                  placeholder="사업자등록번호를 입력하세요"
-                  className="pl-10"
+                  placeholder="매장 사업자등록번호"
                   {...register('businessNumber', {
                     required: '사업자등록번호를 입력해주세요'
                   })}
@@ -259,7 +316,7 @@ export default function SignupScreen({ onBack, onSignup }: SignupScreenProps) {
 
             <div className="bg-blue-50 p-3 rounded-lg">
               <p className="text-xs text-blue-800">
-                판매자 가입은 관리�� 승인이 필요합니다. 승인 후 서비스를 이용하실 수 있습니다.
+                판매자 가입은 관리자 승인이 필요합니다. 승인 후 서비스를 이용하실 수 있습니다.
               </p>
             </div>
 

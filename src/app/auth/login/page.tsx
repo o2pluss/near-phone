@@ -9,14 +9,39 @@ import { Loader2 } from 'lucide-react';
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, loading, signIn } = useAuth();
+  const { user, profile, loading, signIn } = useAuth();
 
   useEffect(() => {
-    if (!loading && user) {
-      const redirectTo = searchParams.get('redirect') || '/';
-      router.push(redirectTo);
+    if (!loading && user && profile) {
+      const redirectTo = searchParams.get('redirect');
+      
+      // redirect 파라미터가 있으면 해당 페이지로 이동
+      if (redirectTo) {
+        router.push(redirectTo);
+        return;
+      }
+      
+      // 역할별 기본 페이지로 리다이렉트
+      if (profile.role === 'admin') {
+        console.log('Admin 권한, /admin으로 리다이렉트');
+        router.push('/admin');
+      } else if (profile.role === 'seller') {
+        if (profile.is_active) {
+          console.log('Seller 권한 (승인됨), /seller로 리다이렉트');
+          router.push('/seller');
+        } else {
+          console.log('Seller 권한 (미승인), /pending-approval로 리다이렉트');
+          router.push('/pending-approval');
+        }
+      } else if (profile.role === 'user') {
+        console.log('User 권한, /main으로 리다이렉트');
+        router.push('/main');
+      } else {
+        console.log('알 수 없는 역할, /main으로 리다이렉트');
+        router.push('/main');
+      }
     }
-  }, [user, loading, router, searchParams]);
+  }, [user, profile, loading, router, searchParams]);
 
   if (loading) {
     return (
@@ -29,7 +54,7 @@ export default function LoginPage() {
     );
   }
 
-  if (user) {
+  if (user && profile) {
     return null; // 리다이렉트 중
   }
 
@@ -38,10 +63,8 @@ export default function LoginPage() {
       const { error } = await signIn(email, password);
       if (error) {
         console.error('로그인 실패:', error);
-      } else {
-        const redirectTo = searchParams.get('redirect') || '/';
-        router.push(redirectTo);
       }
+      // useEffect에서 역할별 리다이렉트 처리
     } catch (error) {
       console.error('로그인 실패:', error);
     }

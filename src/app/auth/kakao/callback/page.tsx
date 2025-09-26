@@ -50,7 +50,15 @@ export default function KakaoCallbackPage() {
           });
 
           if (!response.ok) {
-            const errorData = await response.json();
+            let errorData;
+            try {
+              errorData = await response.json();
+            } catch (jsonError) {
+              // JSON 파싱 실패 시 텍스트로 읽기
+              const errorText = await response.text();
+              console.error('서버 응답 (JSON 아님):', errorText);
+              throw new Error(`서버 응답 오류: ${response.status} ${response.statusText}`);
+            }
             console.error('서버 오류:', errorData);
             throw new Error(`서버에서 사용자 정보 조회 실패: ${errorData.error || '알 수 없는 오류'}`);
           }

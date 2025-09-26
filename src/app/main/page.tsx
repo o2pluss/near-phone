@@ -1,19 +1,14 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter, useParams, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import StoreDetail from '@/components/StoreDetail';
+import MainScreen from '@/components/MainScreen';
 import { Loader2 } from 'lucide-react';
 
-export default function DetailPage() {
+export default function MainPage() {
   const router = useRouter();
-  const params = useParams();
-  const searchParams = useSearchParams();
   const { user, profile, loading } = useAuth();
-
-  const storeId = params.id as string;
-  const fromReservation = searchParams.get('from') === 'reservation';
 
   useEffect(() => {
     if (!loading && (!user || !profile)) {
@@ -50,35 +45,18 @@ export default function DetailPage() {
     return null; // 리다이렉트 중
   }
 
-  const handleBack = () => {
-    if (fromReservation) {
-      router.push('/reservations');
-    } else {
-      router.push('/search');
-    }
+  const handleSearch = () => {
+    router.push('/search');
   };
 
-  if (!storeId) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-lg text-red-600">매장 정보를 찾을 수 없습니다.</div>
-          <button 
-            onClick={handleBack} 
-            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-          >
-            이전 페이지로 돌아가기
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const handleReviews = () => {
+    router.push('/reviews');
+  };
 
   return (
-    <StoreDetail 
-      storeId={storeId} 
-      onBack={handleBack}
-      hideConditionsAndBooking={fromReservation}
+    <MainScreen 
+      onSearch={handleSearch}
+      onReviews={handleReviews}
     />
   );
 }

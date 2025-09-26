@@ -98,6 +98,18 @@ export async function updateSellerApplicationStatus(
   rejectionReason?: string
 ) {
   try {
+    // 1. 먼저 신청서 정보 조회
+    const { data: application, error: fetchError } = await supabase
+      .from('seller_applications')
+      .select('user_id')
+      .eq('id', applicationId)
+      .single();
+
+    if (fetchError) {
+      throw fetchError;
+    }
+
+    // 2. 신청서 상태 업데이트
     const { data, error } = await supabase
       .from('seller_applications')
       .update({
@@ -111,6 +123,22 @@ export async function updateSellerApplicationStatus(
 
     if (error) {
       throw error;
+    }
+
+    // 3. 승인된 경우 profiles 테이블의 is_active를 true로 업데이트
+    if (status === 'approved') {
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          is_active: true,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('user_id', application.user_id);
+
+      if (profileError) {
+        console.error('프로필 활성화 오류:', profileError);
+        // 프로필 업데이트 실패해도 신청서 상태는 업데이트되었으므로 계속 진행
+      }
     }
 
     return { data, error: null };

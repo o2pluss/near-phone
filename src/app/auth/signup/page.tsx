@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { SignupForm } from '@/components/auth/SignupForm';
+import SignupScreen from '@/components/SignupScreen';
 import { Loader2 } from 'lucide-react';
 
 export default function SignupPage() {
@@ -31,14 +31,20 @@ export default function SignupPage() {
     return null; // 리다이렉트 중
   }
 
+  const handleBack = () => {
+    router.push('/auth/login');
+  };
+
+  const handleSignup = () => {
+    // SignupScreen에서 처리됨
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="w-full max-w-md space-y-8">
-        <SignupForm
-          onSuccess={() => router.push('/')}
-          onSwitchToLogin={() => router.push('/auth/login')}
-        />
-      </div>
+    <div className="min-h-screen bg-background">
+      <SignupScreen 
+        onBack={handleBack}
+        onSignup={handleSignup}
+      />
     </div>
   );
 }

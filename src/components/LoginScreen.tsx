@@ -34,7 +34,7 @@ interface LoginFormData {
 
 interface LoginScreenProps {
   onLogin: (email: string, password: string) => void;
-  onSignup: () => void;
+  onSignup?: () => void;
   onKakaoLogin?: () => void;
 }
 
@@ -43,6 +43,11 @@ export default function LoginScreen({
   onSignup,
   onKakaoLogin,
 }: LoginScreenProps) {
+  const handleSignup = () => {
+    if (typeof onSignup === 'function') {
+      onSignup();
+    }
+  };
   const [activeTab, setActiveTab] = useState("user");
   const { signInWithKakao } = useAuth();
   const {
@@ -194,7 +199,7 @@ export default function LoginScreen({
                 <Button
                   variant="link"
                   className="p-0 h-auto"
-                  onClick={onSignup}
+                  onClick={handleSignup}
                 >
                   회원가입
                 </Button>
