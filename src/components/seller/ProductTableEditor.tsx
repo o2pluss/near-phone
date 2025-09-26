@@ -36,21 +36,33 @@ import {
   convertKeysToTexts,
   convertTextsToKeys
 } from "@/lib/constants";
+import { getDeviceModels, type DeviceModel } from "../../lib/api/deviceModels";
+import { MANUFACTURER_LABELS, STORAGE_LABELS, type StorageCode } from "../../lib/constants/codes";
 
-// 고정 모델 데이터
-const FIXED_MODELS = [
-  { id: 'galaxy-s24-256', name: '갤럭시 S24', storage: '256GB', brand: 'samsung' },
-  { id: 'galaxy-s24-512', name: '갤럭시 S24', storage: '512GB', brand: 'samsung' },
-  { id: 'galaxy-s24-fe-256', name: '갤럭시 S24 FE', storage: '256GB', brand: 'samsung' },
-  { id: 'galaxy-s24-ultra-256', name: '갤럭시 S24 울트라', storage: '256GB', brand: 'samsung' },
-  { id: 'galaxy-s24-plus-256', name: '갤럭시 S24 플러스', storage: '256GB', brand: 'samsung' },
-  { id: 'galaxy-s24-plus-512', name: '갤럭시 S24 플러스', storage: '512GB', brand: 'samsung' },
-  { id: 'iphone-16-128', name: '아이폰 16', storage: '128GB', brand: 'apple' },
-  { id: 'iphone-16-256', name: '아이폰 16', storage: '256GB', brand: 'apple' },
-  { id: 'iphone-16-512', name: '아이폰 16', storage: '512GB', brand: 'apple' },
-  { id: 'iphone-16-pro-128', name: '아이폰 16 프로', storage: '128GB', brand: 'apple' },
-  { id: 'iphone-16-pro-256', name: '아이폰 16 프로', storage: '256GB', brand: 'apple' },
-];
+// 모델과 용량 조합을 생성하는 함수
+const generateModelStorageCombinations = (deviceModels: DeviceModel[]) => {
+  const combinations: Array<{
+    id: string;
+    name: string;
+    storage: StorageCode;
+    brand: 'samsung' | 'apple';
+    manufacturer: string;
+  }> = [];
+
+  (deviceModels || []).forEach(model => {
+    (model.supportedStorage || []).forEach((storage: StorageCode) => {
+      combinations.push({
+        id: `${model.id}-${storage}`,
+        name: model.model,
+        storage: storage,
+        brand: model.manufacturer === 'SAMSUNG' ? 'samsung' : 'apple',
+        manufacturer: model.manufacturer
+      });
+    });
+  });
+
+  return combinations;
+};
 
 const CARRIERS = ['KT', 'SKT', 'LGU+'];
 const CONDITIONS = ['번호이동', '기기변경'];
@@ -82,6 +94,30 @@ export default function ProductTableEditor({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showConditionModal, setShowConditionModal] = useState(false);
   const [selectedCell, setSelectedCell] = useState<{modelId: string, carrier: string, condition: string} | null>(null);
+  const [deviceModels, setDeviceModels] = useState<DeviceModel[]>([]);
+  const [modelCombinations, setModelCombinations] = useState<Array<{
+    id: string;
+    name: string;
+    storage: StorageCode;
+    brand: 'samsung' | 'apple';
+    manufacturer: string;
+  }>>([]);
+
+  // 단말기 데이터 로드
+  useEffect(() => {
+    const loadDeviceModels = async () => {
+      try {
+        const models = await getDeviceModels();
+        setDeviceModels(models);
+        const combinations = generateModelStorageCombinations(models);
+        setModelCombinations(combinations);
+      } catch (error) {
+        console.error('단말기 데이터 로드 실패:', error);
+      }
+    };
+    
+    loadDeviceModels();
+  }, []);
 
   // 기존 상품 데이터를 테이블 형태로 변환
   useEffect(() => {
@@ -176,7 +212,7 @@ export default function ProductTableEditor({
   const copyRow = (modelId: string) => {
     // 원본 모델 ID 찾기 (복사된 모델인 경우 원본 ID로 변환)
     const originalModelId = modelId.replace(/-copy-\d+$/, '');
-    const model = FIXED_MODELS.find(m => m.id === originalModelId);
+    const model = (modelCombinations || []).find(m => m.id === originalModelId);
     if (!model) {
       return;
     }
@@ -269,7 +305,7 @@ export default function ProductTableEditor({
     Object.keys(tableData).forEach(modelId => {
       // 복사된 모델인 경우 원본 모델 찾기
       const originalModelId = modelId.replace(/-copy-\d+$/, '');
-      const model = FIXED_MODELS.find(m => m.id === originalModelId);
+      const model = (modelCombinations || []).find(m => m.id === originalModelId);
       if (!model) return;
       
       Object.keys(tableData[modelId]).forEach(carrier => {
@@ -298,7 +334,7 @@ export default function ProductTableEditor({
     onSave(products);
   };
 
-  const filteredModels = FIXED_MODELS.filter(model => 
+  const filteredModels = (modelCombinations || []).filter(model => 
     activeTab === 'samsung' ? model.brand === 'samsung' : model.brand === 'apple'
   );
 
@@ -309,7 +345,7 @@ export default function ProductTableEditor({
   const directCopyRelations = new Map<string, string[]>();
   
   // 복사본들을 직접 부모별로 그룹화
-  Object.keys(tableData).forEach(modelId => {
+  Object.keys(tableData || {}).forEach(modelId => {
     if (modelId.includes('-copy-')) {
       // 복사본의 직접 부모 찾기
       // 예: "galaxy-s24-fe-256-copy-123" -> "galaxy-s24-fe-256"
@@ -330,7 +366,7 @@ export default function ProductTableEditor({
   const addModelWithDirectCopies = (modelId: string) => {
     // 원본 모델 찾기
     const originalModelId = modelId.replace(/-copy-\d+$/, '');
-    const model = FIXED_MODELS.find(m => m.id === originalModelId);
+    const model = (modelCombinations || []).find(m => m.id === originalModelId);
     if (!model) {
       console.log('Model not found for:', modelId);
       return;
@@ -368,7 +404,7 @@ export default function ProductTableEditor({
   };
   
   // 원본 모델들부터 시작하여 복사본들을 올바른 순서로 배치
-  filteredModels.forEach(model => {
+  (filteredModels || []).forEach(model => {
     addModelWithDirectCopies(model.id);
   });
 
@@ -435,7 +471,9 @@ export default function ProductTableEditor({
                                 <div className="flex items-center justify-between">
                                   <div className="flex flex-wrap items-center gap-1">
                                     <span className="text-sm">{model.name}</span>
-                                    {isCopied && <span className="text-xs">copy</span>}
+                                    <span className="text-xs text-muted-foreground ml-1">
+                                      {STORAGE_LABELS[model.storage as keyof typeof STORAGE_LABELS]}
+                                    </span>
                                   </div>
                                   <div className="flex space-x-1">
                                     <Button
@@ -464,9 +502,6 @@ export default function ProductTableEditor({
                                     )}
                                   </div>
                                 </div>
-                                <Badge variant="secondary" className="text-xs">
-                                  {model.storage}
-                                </Badge>
                               </div>
                             </TableCell>
                             {CARRIERS.map(carrier => (
@@ -551,7 +586,7 @@ export default function ProductTableEditor({
             {selectedCell && (
               <div className="space-y-4">
                 <div className="text-sm text-muted-foreground">
-                  {FIXED_MODELS.find(m => m.id === selectedCell.modelId)?.name} {FIXED_MODELS.find(m => m.id === selectedCell.modelId)?.storage} - {selectedCell.carrier} - {selectedCell.condition}
+                  {(modelCombinations || []).find(m => m.id === selectedCell.modelId)?.name} {(modelCombinations || []).find(m => m.id === selectedCell.modelId)?.storage} - {selectedCell.carrier} - {selectedCell.condition}
                 </div>
                 <div className="space-y-2">
                   <Label>선택</Label>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { Checkbox } from "../ui/checkbox";
@@ -49,58 +49,56 @@ import {
 import ProductBulkEditor from "./ProductBulkEditor";
 import ProductLogDialog, { type ProductLog } from "./ProductLogDialog";
 import { getPhoneModels, type PhoneModel } from "../../lib/phoneModels";
+import { 
+  getProducts, 
+  createProduct, 
+  updateProduct, 
+  deleteProduct, 
+  bulkCreateProducts,
+  bulkUpdateProducts,
+  bulkDeleteProducts,
+  type ProductWithDetails 
+} from "../../lib/api/products";
 
-interface Product {
-  id: string;
-  model: string;
-  carrier: string;
-  storage: string;
-  price: number;
-  conditions: string[];
-  isActive: boolean;
-  createdAt?: Date;
-  updatedAt?: Date;
-}
+// Product 인터페이스는 ProductWithDetails로 대체
+type Product = ProductWithDetails;
 
 export default function ProductManagement() {
-  // Mock 데이터 - 실제로는 API에서 가져와야 함
-  const [products, setProducts] = useState<Product[]>([
-    {
-      id: "1",
-      model: "Galaxy S24 Ultra",
-      carrier: "skt",
-      storage: "512gb",
-      price: 1500000,
-      conditions: ["S급", "카드 할인"],
-      isActive: true,
-      createdAt: new Date("2024-01-15"),
-      updatedAt: new Date("2024-01-20"),
-    },
-    {
-      id: "2",
-      model: "iPhone 15 Pro",
-      carrier: "kt",
-      storage: "256gb",
-      price: 1200000,
-      conditions: ["A급", "번호이동"],
-      isActive: true,
-      createdAt: new Date("2024-01-16"),
-      updatedAt: new Date("2024-01-21"),
-    },
-    {
-      id: "3",
-      model: "Galaxy S24",
-      carrier: "lgu",
-      storage: "128gb",
-      price: 900000,
-      conditions: ["B급"],
-      isActive: false,
-      createdAt: new Date("2024-01-17"),
-      updatedAt: new Date("2024-01-22"),
-    },
-  ]);
+  // 서버에서 데이터 로드
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const [productLogs, setProductLogs] = useState<ProductLog[]>([]);
+
+  // 상품 데이터 로드
+  useEffect(() => {
+    const loadProducts = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const result = await getProducts({ 
+          // storeId 필터 제거 - 모든 상품 조회 (개발용)
+          page: 1,
+          limit: 100
+        });
+        // 날짜 문자열을 Date 객체로 변환
+        const productsWithDates = result.products.map(product => ({
+          ...product,
+          createdAt: product.createdAt ? new Date(product.createdAt) : new Date(),
+          updatedAt: product.updatedAt ? new Date(product.updatedAt) : new Date()
+        }));
+        setProducts(productsWithDates);
+      } catch (err) {
+        console.error('상품 데이터 로드 실패:', err);
+        setError('상품 데이터를 불러오는데 실패했습니다.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadProducts();
+  }, []);
 
   const onEditProduct = (product: Product) => {
     setEditingProduct(product);
@@ -108,30 +106,103 @@ export default function ProductManagement() {
     setShowBulkEditor(true);
   };
 
-  const onDeleteProduct = (productId: string) => {
-    setProducts(prev => prev.filter(p => p.id !== productId));
+  const onDeleteProduct = async (productId: string) => {
+    try {
+      await deleteProduct(productId);
+      setProducts(prev => prev.filter(p => p.id !== productId));
+    } catch (err) {
+      console.error('상품 삭제 실패:', err);
+      setError('상품 삭제에 실패했습니다.');
+    }
   };
 
-  const onBulkSave = (newProducts: Omit<Product, "id">[], updatedProductId?: string, updatedProductIds?: string[]) => {
-    if (editorMode === 'add') {
-      const productsWithIds = newProducts.map(product => ({
-        ...product,
-        id: Date.now().toString(),
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }));
-      setProducts(prev => [...prev, ...productsWithIds]);
-    } else if (editorMode === 'edit' && updatedProductId) {
-      setProducts(prev => prev.map(p => 
-        p.id === updatedProductId 
-          ? { ...p, ...newProducts[0], updatedAt: new Date() }
-          : p
-      ));
-    } else if (editorMode === 'bulk' && updatedProductIds) {
-      setProducts(prev => prev.map(p => {
-        const updatedProduct = newProducts.find(np => updatedProductIds.includes(p.id));
-        return updatedProduct ? { ...p, ...updatedProduct, updatedAt: new Date() } : p;
-      }));
+  const onBulkSave = async (newProducts: Omit<Product, "id">[], updatedProductId?: string, updatedProductIds?: string[]) => {
+    try {
+      if (editorMode === 'add') {
+        // 상품 일괄 생성
+        const createRequests = newProducts.map(product => ({
+          storeId: 'temp-store-id', // 임시 storeId (개발용)
+          deviceModelId: product.deviceModelId,
+          carrier: product.carrier,
+          storage: product.storage,
+          price: product.price,
+          conditions: product.conditions,
+          isActive: product.isActive
+        }));
+
+        const result = await bulkCreateProducts(createRequests);
+        if (result.success) {
+          // 성공한 경우 서버에서 최신 데이터 다시 로드
+          const latestResult = await getProducts({ 
+            // storeId 필터 제거,
+            page: 1,
+            limit: 100
+          });
+          // 날짜 문자열을 Date 객체로 변환
+          const productsWithDates = latestResult.products.map(product => ({
+            ...product,
+            createdAt: product.createdAt ? new Date(product.createdAt) : new Date(),
+            updatedAt: product.updatedAt ? new Date(product.updatedAt) : new Date()
+          }));
+          setProducts(productsWithDates);
+        } else {
+          setError('상품 생성에 실패했습니다.');
+        }
+      } else if (editorMode === 'edit' && updatedProductId) {
+        // 단일 상품 수정
+        const updateData = newProducts[0];
+        const updatedProduct = await updateProduct(updatedProductId, {
+          carrier: updateData.carrier,
+          storage: updateData.storage,
+          price: updateData.price,
+          conditions: updateData.conditions,
+          isActive: updateData.isActive
+        });
+        setProducts(prev => prev.map(p => p.id === updatedProductId ? {
+          ...updatedProduct,
+          createdAt: updatedProduct.createdAt ? new Date(updatedProduct.createdAt) : new Date(),
+          updatedAt: updatedProduct.updatedAt ? new Date(updatedProduct.updatedAt) : new Date()
+        } : p));
+      } else if (editorMode === 'bulk' && updatedProductIds) {
+        // 상품 일괄 수정
+        const updates: Record<string, any> = {};
+        newProducts.forEach(product => {
+          const productId = updatedProductIds.find(id => 
+            products.find(p => p.id === id)?.deviceModelId === product.deviceModelId
+          );
+          if (productId) {
+            updates[productId] = {
+              carrier: product.carrier,
+              storage: product.storage,
+              price: product.price,
+              conditions: product.conditions,
+              isActive: product.isActive
+            };
+          }
+        });
+
+        const result = await bulkUpdateProducts(updates);
+        if (result.success) {
+          // 성공한 경우 서버에서 최신 데이터 다시 로드
+          const latestResult = await getProducts({ 
+            // storeId 필터 제거,
+            page: 1,
+            limit: 100
+          });
+          // 날짜 문자열을 Date 객체로 변환
+          const productsWithDates = latestResult.products.map(product => ({
+            ...product,
+            createdAt: product.createdAt ? new Date(product.createdAt) : new Date(),
+            updatedAt: product.updatedAt ? new Date(product.updatedAt) : new Date()
+          }));
+          setProducts(productsWithDates);
+        } else {
+          setError('상품 수정에 실패했습니다.');
+        }
+      }
+    } catch (err) {
+      console.error('상품 저장 실패:', err);
+      setError('상품 저장에 실패했습니다.');
     }
   };
   const [showBulkEditor, setShowBulkEditor] = useState(false);
@@ -192,7 +263,7 @@ export default function ProductManagement() {
     // 모델명 필터
     if (modelFilter.length > 0) {
       filtered = filtered.filter(product => 
-        modelFilter.some(model => product.model === model)
+        modelFilter.some(model => product.deviceModel.model === model)
       );
     }
 
@@ -317,7 +388,7 @@ export default function ProductManagement() {
 
   // 현재 등록된 모델들만 추출 (중복 제거)
   const registeredModels = useMemo(() => {
-    const modelNames = [...new Set(products.map(product => product.model))];
+    const modelNames = [...new Set(products.map(product => product.deviceModel.model))];
     return modelNames.sort();
   }, [products]);
 
@@ -406,6 +477,34 @@ export default function ProductManagement() {
       />
     );
   }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-muted-foreground">상품 데이터를 불러오는 중...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <div className="text-center">
+          <div className="text-red-600 mb-4">
+            <AlertCircle className="h-12 w-12 mx-auto" />
+          </div>
+          <p className="text-red-600 mb-4">{error}</p>
+          <Button onClick={() => window.location.reload()}>
+            다시 시도
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -781,7 +880,7 @@ export default function ProductManagement() {
                     />
                   </TableCell>
                   <TableCell className="font-medium">
-                    {product.model}
+                    {product.deviceModel.model}
                   </TableCell>
                   <TableCell>
                     {product.carrier}

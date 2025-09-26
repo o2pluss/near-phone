@@ -46,15 +46,17 @@ import {
   TabsTrigger,
 } from "../ui/tabs";
 import { Plus, Trash2, Copy, Save, X, AlertCircle, ChevronDown, Star, Table as TableIcon } from "lucide-react";
-import { getFavoriteModels, getPhoneModels, updatePhoneModel, type PhoneModel } from "../../lib/phoneModels";
+// phoneModels 관련 import 제거 - 실제 단말기 데이터 사용
 import { ADDITIONAL_CONDITIONS, convertKeysToTexts, convertTextsToKeys, type AdditionalConditionKey } from "@/lib/constants";
+import { getDeviceModels, searchDeviceModels, type DeviceModel } from "../../lib/api/deviceModels";
+import { MANUFACTURER_LABELS } from "../../lib/constants/codes";
 import ProductTableEditor from "./ProductTableEditor";
 
 interface Product {
   id: string;
   model: string;
-  carrier: string;
-  storage: string;
+  carrier: CarrierCode;
+  storage: StorageCode;
   price: number;
   conditions: string[]; // UI에서는 텍스트로 표시하지만 내부적으로는 KEY 사용
   isActive: boolean;
@@ -65,11 +67,28 @@ interface Product {
 interface ProductRow {
   id: string;
   model: string;
-  carrier: string;
-  storage: string;
+  carrier: CarrierCode;
+  storage: StorageCode;
   price: string;
   conditions: string[];
   isActive: boolean;
+  isNew: boolean;
+  hasErrors: boolean;
+}
+
+// 용량별 가격을 위한 새로운 인터페이스
+interface ProductVariant {
+  storage: StorageCode;
+  price: string;
+  conditions: string[];
+  isActive: boolean;
+}
+
+interface ProductWithVariants {
+  id: string;
+  model: string;
+  carrier: CarrierCode;
+  variants: ProductVariant[];
   isNew: boolean;
   hasErrors: boolean;
 }
@@ -83,8 +102,18 @@ interface ProductBulkEditorProps {
   onCancel: () => void;
 }
 
-const carrierOptions = ["SKT", "KT", "LG U+"];
-const storageOptions = ["64GB", "128GB", "256GB", "512GB", "1TB"];
+import { 
+  getAllCarrierCodes, 
+  getAllStorageCodes, 
+  CARRIER_LABELS, 
+  STORAGE_LABELS,
+  STORAGE_CODES,
+  type CarrierCode,
+  type StorageCode
+} from '../../lib/constants/codes';
+
+const carrierOptions = getAllCarrierCodes();
+const storageOptions = getAllStorageCodes();
 const conditionOptions = [
   "번호이동",
   "신규가입", 
@@ -93,13 +122,13 @@ const conditionOptions = [
 ];
 
 // 기본 용량 매핑
-const getDefaultStorages = (modelName: string): string[] => {
+const getDefaultStorages = (modelName: string): StorageCode[] => {
   if (modelName.includes("Pro") || modelName.includes("Ultra") || modelName.includes("Fold")) {
-    return ["128GB", "256GB", "512GB", "1TB"];
+    return [STORAGE_CODES.GB_128, STORAGE_CODES.GB_256, STORAGE_CODES.GB_512, STORAGE_CODES.TB_1];
   } else if (modelName.includes("Flip")) {
-    return ["256GB", "512GB"];
+    return [STORAGE_CODES.GB_256, STORAGE_CODES.GB_512];
   } else {
-    return ["128GB", "256GB", "512GB"];
+    return [STORAGE_CODES.GB_128, STORAGE_CODES.GB_256, STORAGE_CODES.GB_512];
   }
 };
 
@@ -115,9 +144,25 @@ export default function ProductBulkEditor({
   const [hasChanges, setHasChanges] = useState(false);
   const [showModelModal, setShowModelModal] = useState(false);
   const [selectedRowId, setSelectedRowId] = useState<string>("");
-  const [phoneModels, setPhoneModels] = useState<PhoneModel[]>(getPhoneModels());
+  // phoneModels 상태 제거 - deviceModels 사용
+  const [deviceModels, setDeviceModels] = useState<DeviceModel[]>([]);
   const [modelTab, setModelTab] = useState<"samsung" | "apple">("samsung");
   const [editorMode, setEditorMode] = useState<"manual" | "table">("manual");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // 단말기 데이터 로드
+  useEffect(() => {
+    const loadDeviceModels = async () => {
+      try {
+        const models = await getDeviceModels();
+        setDeviceModels(models);
+      } catch (error) {
+        console.error('단말기 데이터 로드 실패:', error);
+      }
+    };
+    
+    loadDeviceModels();
+  }, []);
 
   // 초기 데이터 설정
   useEffect(() => {
@@ -178,8 +223,8 @@ export default function ProductBulkEditor({
   const createEmptyRow = (): ProductRow => ({
     id: `new-${Date.now()}-${Math.random()}`,
     model: "",
-    carrier: "",
-    storage: "",
+    carrier: "" as CarrierCode,
+    storage: "" as StorageCode,
     price: "",
     conditions: [],
     isActive: true,
@@ -245,8 +290,8 @@ export default function ProductBulkEditor({
     const newRow = {
       id: `new-${Date.now()}-${Math.random()}`,
       model: modelName,
-      carrier: "",
-      storage: "256GB", // 기본 256GB로 고정
+      carrier: "" as CarrierCode,
+      storage: STORAGE_CODES.GB_256, // 기본 256GB로 고정
       price: "",
       conditions: [] as string[],
       isActive: true,
@@ -272,30 +317,34 @@ export default function ProductBulkEditor({
   };
 
   const handleModelSelect = (modelId: string) => {
-    const model = phoneModels.find((m) => m.id === modelId);
+    const model = (deviceModels || []).find((m) => m.id === modelId);
     if (model && selectedRowId) {
-      updateRow(selectedRowId, "model", model.name);
+      updateRow(selectedRowId, "model", model.model);
       setShowModelModal(false);
       setSelectedRowId("");
     }
   };
 
   const toggleModelFavorite = (modelId: string) => {
-    const model = phoneModels.find(m => m.id === modelId);
-    if (model) {
-      updatePhoneModel(modelId, { isFavorite: !model.isFavorite });
-      setPhoneModels(getPhoneModels());
-    }
+    // TODO: 단말기 즐겨찾기 기능 구현 (로컬 스토리지 또는 서버 연동)
+    console.log('즐겨찾기 토글:', modelId);
   };
 
   const openModelModal = (rowId: string) => {
+    console.log('모델 모달 열기:', rowId);
+    console.log('현재 deviceModels:', deviceModels);
     setSelectedRowId(rowId);
     setShowModelModal(true);
   };
 
-  const filteredModels = phoneModels.filter(
-    (model) => model.brand === modelTab,
-  );
+  const filteredModels = (deviceModels || []).filter((model) => {
+    const isManufacturerMatch = modelTab === "samsung" ? model.manufacturer === "SAMSUNG" : model.manufacturer === "APPLE";
+    const isSearchMatch = searchQuery === "" || 
+      model.model.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      MANUFACTURER_LABELS[model.manufacturer as keyof typeof MANUFACTURER_LABELS].toLowerCase().includes(searchQuery.toLowerCase());
+    
+    return isManufacturerMatch && isSearchMatch;
+  });
 
   const handleSave = () => {
     const validRows = rows.filter(row => validateRow(row));
@@ -470,27 +519,26 @@ export default function ProductBulkEditor({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {getFavoriteModels().length > 0 ? (
+            {(deviceModels || []).length > 0 ? (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                {getFavoriteModels().map((model) => (
+                {(deviceModels || []).slice(0, 8).map((model) => (
                   <Button
                     key={model.id}
                     variant="outline"
                     size="sm"
-                    onClick={() => addModelTemplate(model.name)}
+                    onClick={() => addModelTemplate(model.model)}
                     className="text-xs h-auto p-2 flex-col"
                   >
-                    <span className="font-medium">{model.name}</span>
+                    <span className="font-medium">{model.model}</span>
                     <span className="text-muted-foreground">
-                      256GB 추가
+                      {MANUFACTURER_LABELS[model.manufacturer as keyof typeof MANUFACTURER_LABELS]}
                     </span>
                   </Button>
                 ))}
               </div>
             ) : (
               <div className="text-center py-4 text-muted-foreground text-sm">
-                <p>즐겨찾는 모델이 없습니다.</p>
-                <p>매장 찾기에서 모델 선택 시 ⭐를 눌러 즐겨찾기로 설정해보세요.</p>
+                <p>단말기 데이터를 불러오는 중...</p>
               </div>
             )}
           </CardContent>
@@ -551,7 +599,7 @@ export default function ProductBulkEditor({
                         <SelectContent>
                           {carrierOptions.map((carrier) => (
                             <SelectItem key={carrier} value={carrier}>
-                              {carrier}
+                              {CARRIER_LABELS[carrier]}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -568,7 +616,7 @@ export default function ProductBulkEditor({
                         <SelectContent>
                           {storageOptions.map((storage) => (
                             <SelectItem key={storage} value={storage}>
-                              {storage}
+                              {STORAGE_LABELS[storage]}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -672,6 +720,16 @@ export default function ProductBulkEditor({
           </DialogHeader>
 
           <div className="space-y-4">
+            {/* 검색 입력 */}
+            <div className="space-y-2">
+              <Input
+                placeholder="모델명 또는 제조사로 검색..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full"
+              />
+            </div>
+
             {/* 브랜드 탭 */}
             <Tabs
               value={modelTab}
@@ -687,45 +745,57 @@ export default function ProductBulkEditor({
 
             {/* 모델 목록 */}
             <div className="space-y-2 max-h-96 overflow-y-auto">
-              {filteredModels.map((model) => (
-                <div
-                  key={model.id}
-                  className="flex items-center p-3 hover:bg-gray-50 rounded-lg border"
-                >
-                  <div className="w-12 h-12 mr-3 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
-                    <img
-                      src={model.image}
-                      alt={model.name}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <div 
-                    className="flex-1 cursor-pointer"
-                    onClick={() => handleModelSelect(model.id)}
+              {filteredModels.length > 0 ? (
+                filteredModels.map((model) => (
+                  <div
+                    key={model.id}
+                    className="flex items-center p-3 hover:bg-gray-50 rounded-lg border"
                   >
-                    <div className="font-medium">
-                      {model.name}
+                    <div className="w-12 h-12 mr-3 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                      {model.imageUrl ? (
+                        <img
+                          src={model.imageUrl}
+                          alt={model.model}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-400">
+                          📱
+                        </div>
+                      )}
                     </div>
+                    <div 
+                      className="flex-1 cursor-pointer"
+                      onClick={() => handleModelSelect(model.id)}
+                    >
+                      <div className="font-medium">
+                        {model.model}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {MANUFACTURER_LABELS[model.manufacturer as keyof typeof MANUFACTURER_LABELS]}
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="p-1 h-auto ml-2"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleModelFavorite(model.id);
+                      }}
+                    >
+                      <Star 
+                        className="h-5 w-5 text-gray-400" 
+                      />
+                    </Button>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="p-1 h-auto ml-2"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleModelFavorite(model.id);
-                    }}
-                  >
-                    <Star 
-                      className={`h-5 w-5 ${
-                        model.isFavorite 
-                          ? 'text-yellow-500 fill-yellow-500' 
-                          : 'text-gray-400'
-                      }`} 
-                    />
-                  </Button>
+                ))
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p>검색 결과가 없습니다.</p>
+                  <p className="text-sm">다른 검색어를 시도해보세요.</p>
                 </div>
-              ))}
+              )}
             </div>
           </div>
         </DialogContent>

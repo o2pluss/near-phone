@@ -30,6 +30,21 @@ import {
 } from 'lucide-react';
 import ReviewManagement from './admin/ReviewManagement';
 import { supabase } from '../lib/supabaseClient';
+import { getDeviceModels, getDeviceModelById } from '../lib/api/deviceModels';
+import { 
+  CARRIER_CODES, 
+  CARRIER_LABELS, 
+  MANUFACTURER_CODES, 
+  MANUFACTURER_LABELS, 
+  STORAGE_CODES, 
+  STORAGE_LABELS,
+  getAllCarrierCodes,
+  getAllManufacturerCodes,
+  getAllStorageCodes,
+  type CarrierCode,
+  type ManufacturerCode,
+  type StorageCode
+} from '../lib/constants/codes';
 
 interface User {
   id: string;
@@ -68,117 +83,20 @@ interface Product {
 
 interface DeviceModel {
   id: string;
-  carrier: string;
-  manufacturer: string;
+  manufacturer: ManufacturerCode;
   model: string;
+  supportedCarriers: CarrierCode[]; // 지원하는 통신사 목록
+  supportedStorage: StorageCode[]; // 지원하는 용량 목록
   imageUrl?: string; // 단말기 이미지 URL
   createdAt: string;
 }
 
-const mockUsers: User[] = [
-  {
-    id: '1',
-    name: '김사용자',
-    email: 'user1@example.com',
-    phone: '010-1234-5678',
-    role: 'user',
-    status: 'active',
-    createdAt: '2024-01-15',
-    lastLogin: '2024-01-20'
-  },
-  {
-    id: '2',
-    name: '이구매자',
-    email: 'user2@example.com',
-    phone: '010-2345-6789',
-    role: 'user',
-    status: 'active',
-    createdAt: '2024-01-10',
-    lastLogin: '2024-01-19'
-  }
-];
-
-const mockStores: Store[] = [
-  {
-    id: '1',
-    name: '강남 휴대폰 매장',
-    ownerName: '박판매자',
-    email: 'seller1@example.com',
-    phone: '02-1234-5678',
-    address: '서울시 강남구 역삼동 123-45',
-    businessNumber: '123-45-67890',
-    status: 'active',
-    createdAt: '2024-01-12'
-  },
-  {
-    id: '2',
-    name: '신청중 매장',
-    ownerName: '최신청자',
-    email: 'pending@example.com',
-    phone: '02-9876-5432',
-    address: '서울시 서초구 서초동 456-78',
-    businessNumber: '987-65-43210',
-    status: 'pending',
-    createdAt: '2024-01-18'
-  }
-];
-
-const mockProducts: Product[] = [
-  {
-    id: '1',
-    storeId: '1',
-    storeName: '강남 휴대폰 매장',
-    model: 'iPhone 15 Pro',
-    carrier: 'KT',
-    storage: '256GB',
-    price: 1200000,
-    status: 'active',
-    createdAt: '2024-01-15'
-  },
-  {
-    id: '2',
-    storeId: '1',
-    storeName: '강남 휴대폰 매장',
-    model: 'Galaxy S24 Ultra',
-    carrier: 'SKT',
-    storage: '512GB',
-    price: 980000,
-    status: 'active',
-    createdAt: '2024-01-16'
-  }
-];
-
-const mockDeviceModels: DeviceModel[] = [
-  {
-    id: '1',
-    carrier: 'KT',
-    manufacturer: '애플',
-    model: 'iPhone 15 Pro',
-    imageUrl: 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=400&h=400&fit=crop',
-    createdAt: '2024-01-01'
-  },
-  {
-    id: '2',
-    carrier: 'SKT',
-    manufacturer: '삼성',
-    model: 'Galaxy S24 Ultra',
-    imageUrl: 'https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?w=400&h=400&fit=crop',
-    createdAt: '2024-01-01'
-  },
-  {
-    id: '3',
-    carrier: 'LG U+',
-    manufacturer: '삼성',
-    model: 'Galaxy Z Flip 6',
-    createdAt: '2024-01-01'
-  }
-];
 
 export default function AdminDashboard() {
-  const [users, setUsers] = useState<User[]>(mockUsers);
+  const [users, setUsers] = useState<User[]>([]);
   const [stores, setStores] = useState<Store[]>([]);
-  const [products, setProducts] = useState<Product[]>(mockProducts);
-  const [deviceModels, setDeviceModels] = useState<DeviceModel[]>(mockDeviceModels);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [deviceModels, setDeviceModels] = useState<DeviceModel[]>([]);
   const [isDeviceDialogOpen, setIsDeviceDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingDevice, setEditingDevice] = useState<DeviceModel | null>(null);
@@ -236,26 +154,56 @@ export default function AdminDashboard() {
     fetchSellerApplications();
   }, []);
 
-  // Mock 리뷰 데이터 (통계용)
-  const mockReviewStats = {
-    total: 156,
-    blocked: 12,
-    averageRating: 4.2
+  // 단말기 모델 데이터 로드
+  useEffect(() => {
+    const fetchDeviceModels = async () => {
+      try {
+        const models = await getDeviceModels();
+        setDeviceModels(models);
+      } catch (error) {
+        console.error('단말기 모델 데이터 로드 실패:', error);
+        setDeviceModels([]);
+        
+        // 사용자에게 알림
+        if (error instanceof Error) {
+          if (error.message.includes('device_models 테이블이 존재하지 않습니다')) {
+            alert('데이터베이스 테이블이 생성되지 않았습니다.\n\n해결 방법:\n1. Supabase 대시보드에서 SQL Editor 열기\n2. scripts/create-device-models-table.sql 파일의 내용 실행\n3. 페이지 새로고침');
+          } else if (error.message.includes('RLS 정책')) {
+            alert('데이터베이스 권한 문제가 발생했습니다.\n\n해결 방법:\n1. Supabase에서 RLS 정책 확인\n2. 개발용으로 RLS 비활성화 고려');
+          } else {
+            alert(`단말기 모델 데이터 로드 실패: ${error.message}`);
+          }
+        } else {
+          alert('단말기 모델 데이터 로드에 실패했습니다. 데이터베이스 연결을 확인해주세요.');
+        }
+      }
+    };
+
+    fetchDeviceModels();
+  }, []);
+
+  // 리뷰 통계 (실제 데이터에서 계산)
+  const reviewStats = {
+    total: 0,
+    blocked: 0,
+    averageRating: 0
   };
 
   const deviceForm = useForm<Omit<DeviceModel, 'id' | 'createdAt'>>({
     defaultValues: {
-      carrier: '',
-      manufacturer: '',
-      model: ''
+      manufacturer: MANUFACTURER_CODES.SAMSUNG,
+      model: '',
+      supportedCarriers: [],
+      supportedStorage: []
     }
   });
   
   const editForm = useForm<Omit<DeviceModel, 'id' | 'createdAt'>>({
     defaultValues: {
-      carrier: '',
-      manufacturer: '',
-      model: ''
+      manufacturer: MANUFACTURER_CODES.SAMSUNG,
+      model: '',
+      supportedCarriers: [],
+      supportedStorage: []
     }
   });
 
@@ -385,64 +333,145 @@ export default function AdminDashboard() {
     setImagePreview('');
   };
 
-  const handleDeviceModelAdd = (data: Omit<DeviceModel, 'id' | 'createdAt'>) => {
-    const newDevice: DeviceModel = {
-      ...data,
-      imageUrl: imagePreview || undefined, // 실제로는 서버에 업로드된 URL 사용
-      id: Date.now().toString(),
-      createdAt: new Date().toISOString().split('T')[0]
-    };
-    setDeviceModels([...deviceModels, newDevice]);
-    setIsDeviceDialogOpen(false);
-    deviceForm.reset();
-    handleImageRemove(); // 이미지 상태 초기화
+  const handleDeviceModelAdd = async (data: Omit<DeviceModel, 'id' | 'createdAt'>) => {
+    try {
+      const response = await fetch('/api/device-models', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          manufacturer: data.manufacturer,
+          model: data.model,
+          supported_carriers: data.supportedCarriers,
+          supported_storage: data.supportedStorage,
+          image_url: imagePreview || null
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('단말기 모델 추가에 실패했습니다.');
+      }
+
+      const newDevice = await response.json();
+      setDeviceModels([...deviceModels, newDevice]);
+      setIsDeviceDialogOpen(false);
+      deviceForm.reset({
+        manufacturer: MANUFACTURER_CODES.SAMSUNG,
+        model: '',
+        supportedCarriers: [],
+        supportedStorage: []
+      });
+      handleImageRemove();
+    } catch (error) {
+      console.error('단말기 모델 추가 실패:', error);
+      
+      if (error instanceof Error) {
+        if (error.message.includes('device_models 테이블이 존재하지 않습니다')) {
+          alert('데이터베이스 테이블이 생성되지 않았습니다.\n\n해결 방법:\n1. Supabase 대시보드에서 SQL Editor 열기\n2. scripts/create-device-models-table.sql 파일의 내용 실행\n3. 다시 시도');
+        } else if (error.message.includes('RLS 정책')) {
+          alert('데이터베이스 권한 문제가 발생했습니다.\n\n해결 방법:\n1. Supabase에서 RLS 정책 확인\n2. 개발용으로 RLS 비활성화 고려');
+        } else {
+          alert(`단말기 모델 추가 실패: ${error.message}`);
+        }
+      } else {
+        alert('단말기 모델 추가에 실패했습니다.');
+      }
+    }
   };
 
   const handleDialogClose = () => {
     setIsDeviceDialogOpen(false);
-    deviceForm.reset();
+    deviceForm.reset({
+      manufacturer: MANUFACTURER_CODES.SAMSUNG,
+      model: '',
+      supportedCarriers: [],
+      supportedStorage: []
+    });
     handleImageRemove(); // 이미지 상태 초기화
   };
 
-  const handleDeviceModelDelete = (deviceId: string) => {
-    setDeviceModels(deviceModels.filter(device => device.id !== deviceId));
+  const handleDeviceModelDelete = async (deviceId: string) => {
+    try {
+      const response = await fetch(`/api/device-models/${deviceId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('단말기 모델 삭제에 실패했습니다.');
+      }
+
+      setDeviceModels(deviceModels.filter(device => device.id !== deviceId));
+    } catch (error) {
+      console.error('단말기 모델 삭제 실패:', error);
+      alert('단말기 모델 삭제에 실패했습니다.');
+    }
   };
 
   const handleDeviceEdit = (device: DeviceModel) => {
     setEditingDevice(device);
     editForm.reset({
-      carrier: device.carrier,
       manufacturer: device.manufacturer,
       model: device.model,
+      supportedCarriers: device.supportedCarriers,
+      supportedStorage: device.supportedStorage,
       imageUrl: device.imageUrl
     });
     setImagePreview(device.imageUrl || '');
     setIsEditDialogOpen(true);
   };
 
-  const handleDeviceUpdate = (data: Omit<DeviceModel, 'id' | 'createdAt'>) => {
+  const handleDeviceUpdate = async (data: Omit<DeviceModel, 'id' | 'createdAt'>) => {
     if (!editingDevice) return;
     
-    const updatedDevice: DeviceModel = {
-      ...editingDevice,
-      ...data,
-      imageUrl: imagePreview || undefined
-    };
-    
-    setDeviceModels(deviceModels.map(device => 
-      device.id === editingDevice.id ? updatedDevice : device
-    ));
-    
-    setIsEditDialogOpen(false);
-    setEditingDevice(null);
-    editForm.reset();
-    handleImageRemove();
+    try {
+      const response = await fetch(`/api/device-models/${editingDevice.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          manufacturer: data.manufacturer,
+          model: data.model,
+          supported_carriers: data.supportedCarriers,
+          supported_storage: data.supportedStorage,
+          image_url: imagePreview || null
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('단말기 모델 수정에 실패했습니다.');
+      }
+
+      const updatedDevice = await response.json();
+      setDeviceModels(deviceModels.map(device => 
+        device.id === editingDevice.id ? updatedDevice : device
+      ));
+      
+      setIsEditDialogOpen(false);
+      setEditingDevice(null);
+      editForm.reset({
+        manufacturer: MANUFACTURER_CODES.SAMSUNG,
+        model: '',
+        supportedCarriers: [],
+        supportedStorage: []
+      });
+      handleImageRemove();
+    } catch (error) {
+      console.error('단말기 모델 수정 실패:', error);
+      alert('단말기 모델 수정에 실패했습니다.');
+    }
   };
 
   const handleEditDialogClose = () => {
     setIsEditDialogOpen(false);
     setEditingDevice(null);
-    editForm.reset();
+    editForm.reset({
+      manufacturer: MANUFACTURER_CODES.SAMSUNG,
+      model: '',
+      supportedCarriers: [],
+      supportedStorage: []
+    });
     handleImageRemove();
   };
 
@@ -513,7 +542,7 @@ export default function AdminDashboard() {
             <div className="flex items-center space-x-2">
               <MessageSquare className="h-8 w-8 text-yellow-500" />
               <div>
-                <p className="text-2xl font-bold">{mockReviewStats.total - mockReviewStats.blocked}</p>
+                <p className="text-2xl font-bold">{reviewStats.total - reviewStats.blocked}</p>
                 <p className="text-xs text-muted-foreground">활성 리뷰</p>
               </div>
             </div>
@@ -774,7 +803,7 @@ export default function AdminDashboard() {
         {/* Device Model Management */}
         <TabsContent value="devices" className="space-y-4">
           <div className="flex justify-between items-center">
-            <h3 className="text-lg font-semibold">단말기 모델 ({deviceModels.length})</h3>
+            <h3 className="text-lg font-semibold">단말기 ({deviceModels.length})</h3>
             <Button onClick={() => setIsDeviceDialogOpen(true)}>
               <Plus className="h-4 w-4 mr-2" />
               단말기 추가
@@ -786,15 +815,29 @@ export default function AdminDashboard() {
               <TableHeader>
                 <TableRow>
                   <TableHead>이미지</TableHead>
-                  <TableHead>통신사</TableHead>
                   <TableHead>제조사</TableHead>
                   <TableHead>모델명</TableHead>
+                  <TableHead>지원 통신사</TableHead>
+                  <TableHead>지원 용량</TableHead>
                   <TableHead>등록일</TableHead>
                   <TableHead>관리</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {deviceModels.map((device) => (
+                {deviceModels.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-8">
+                      <div className="flex flex-col items-center space-y-2">
+                        <ImageIcon className="h-12 w-12 text-gray-400" />
+                        <p className="text-gray-500">등록된 단말기가 없습니다</p>
+                        <p className="text-sm text-gray-400">
+                          {isLoading ? '데이터를 불러오는 중...' : '새로운 단말기를 추가해보세요'}
+                        </p>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  deviceModels.map((device) => (
                   <TableRow key={device.id}>
                     <TableCell>
                       <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center">
@@ -809,9 +852,26 @@ export default function AdminDashboard() {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell>{device.carrier}</TableCell>
-                    <TableCell>{device.manufacturer}</TableCell>
+                    <TableCell>{MANUFACTURER_LABELS[device.manufacturer as keyof typeof MANUFACTURER_LABELS] || device.manufacturer || '알 수 없음'}</TableCell>
                     <TableCell className="font-medium">{device.model}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {(device.supportedCarriers || []).map((carrier) => (
+                          <Badge key={carrier} variant="outline" className="text-xs">
+                            {CARRIER_LABELS[carrier as keyof typeof CARRIER_LABELS] || carrier}
+                          </Badge>
+                        ))}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {(device.supportedStorage || []).map((size) => (
+                          <Badge key={size} variant="secondary" className="text-xs">
+                            {STORAGE_LABELS[size as keyof typeof STORAGE_LABELS] || size}
+                          </Badge>
+                        ))}
+                      </div>
+                    </TableCell>
                     <TableCell>{device.createdAt}</TableCell>
                     <TableCell>
                       <div className="flex space-x-1">
@@ -832,7 +892,8 @@ export default function AdminDashboard() {
                       </div>
                     </TableCell>
                   </TableRow>
-                ))}
+                  ))
+                )}
               </TableBody>
             </Table>
           </Card>
@@ -843,16 +904,16 @@ export default function AdminDashboard() {
       <Dialog open={isDeviceDialogOpen} onOpenChange={handleDialogClose}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>단말기 모델 추가</DialogTitle>
+            <DialogTitle>단말기 추가</DialogTitle>
             <DialogDescription>
-              새로운 단말기 모델을 등록하세요
+              새로운 모델을 등록하세요
             </DialogDescription>
           </DialogHeader>
           
           <form onSubmit={deviceForm.handleSubmit(handleDeviceModelAdd)} className="space-y-4">
             {/* 이미지 업로드 */}
             <div className="space-y-2">
-              <Label>단말기 이미지 (선택사항)</Label>
+              <Label>단말기 이미지T</Label>
               <div className="flex items-start space-x-4">
                 <div className="flex-1">
                   <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-400 transition-colors">
@@ -898,24 +959,36 @@ export default function AdminDashboard() {
             </div>
 
             <div className="space-y-2">
-              <Label>통신사</Label>
-              <Controller
-                name="carrier"
-                control={deviceForm.control}
-                rules={{ required: '통신사를 선택해주세요' }}
-                render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="통신사 선택" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="KT">KT</SelectItem>
-                      <SelectItem value="SKT">SKT</SelectItem>
-                      <SelectItem value="LG U+">LG U+</SelectItem>
-                    </SelectContent>
-                  </Select>
-                )}
-              />
+              <Label>지원 통신사</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {getAllCarrierCodes().map((carrierCode) => (
+                  <div key={carrierCode} className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id={`carrier-${carrierCode}`}
+                      value={carrierCode}
+                      checked={deviceForm.watch('supportedCarriers')?.includes(carrierCode) || false}
+                      onChange={(e) => {
+                        const currentCarriers = deviceForm.getValues('supportedCarriers') || [];
+                        if (e.target.checked) {
+                          deviceForm.setValue('supportedCarriers', [...currentCarriers, carrierCode]);
+                        } else {
+                          deviceForm.setValue('supportedCarriers', currentCarriers.filter(c => c !== carrierCode));
+                        }
+                      }}
+                      className="rounded border-gray-300"
+                    />
+                    <Label htmlFor={`carrier-${carrierCode}`} className="text-sm">
+                      {CARRIER_LABELS[carrierCode]}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+              {deviceForm.formState.errors.supportedCarriers && (
+                <p className="text-sm text-destructive">
+                  {deviceForm.formState.errors.supportedCarriers.message}
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -930,10 +1003,11 @@ export default function AdminDashboard() {
                       <SelectValue placeholder="제조사 선택" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="삼성">삼성</SelectItem>
-                      <SelectItem value="애플">애플</SelectItem>
-                      <SelectItem value="LG">LG</SelectItem>
-                      <SelectItem value="기타">기타</SelectItem>
+                      {getAllManufacturerCodes().map((manufacturerCode) => (
+                        <SelectItem key={manufacturerCode} value={manufacturerCode}>
+                          {MANUFACTURER_LABELS[manufacturerCode]}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 )}
@@ -953,6 +1027,39 @@ export default function AdminDashboard() {
               )}
             </div>
 
+            <div className="space-y-2">
+              <Label>지원 용량</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {getAllStorageCodes().map((storageCode) => (
+                  <div key={storageCode} className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id={`storage-${storageCode}`}
+                      value={storageCode}
+                      checked={deviceForm.watch('supportedStorage')?.includes(storageCode) || false}
+                      onChange={(e) => {
+                        const currentStorage = deviceForm.getValues('supportedStorage') || [];
+                        if (e.target.checked) {
+                          deviceForm.setValue('supportedStorage', [...currentStorage, storageCode]);
+                        } else {
+                          deviceForm.setValue('supportedStorage', currentStorage.filter(s => s !== storageCode));
+                        }
+                      }}
+                      className="rounded border-gray-300"
+                    />
+                    <Label htmlFor={`storage-${storageCode}`} className="text-sm">
+                      {STORAGE_LABELS[storageCode]}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+              {deviceForm.formState.errors.supportedStorage && (
+                <p className="text-sm text-destructive">
+                  {deviceForm.formState.errors.supportedStorage.message}
+                </p>
+              )}
+            </div>
+
             <DialogFooter>
               <Button type="button" variant="outline" onClick={handleDialogClose}>
                 취소
@@ -967,9 +1074,9 @@ export default function AdminDashboard() {
       <Dialog open={isEditDialogOpen} onOpenChange={handleEditDialogClose}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>단말기 모델 편집</DialogTitle>
+            <DialogTitle>단말기 편집</DialogTitle>
             <DialogDescription>
-              단말기 모델 정보를 수정하세요
+              단말기 정보를 수정하세요
             </DialogDescription>
           </DialogHeader>
           
@@ -1022,27 +1129,34 @@ export default function AdminDashboard() {
             </div>
 
             <div className="space-y-2">
-              <Label>통신사</Label>
-              <Controller
-                name="carrier"
-                control={editForm.control}
-                rules={{ required: '통신사를 선택해주세요' }}
-                render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="통신사 선택" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="KT">KT</SelectItem>
-                      <SelectItem value="SKT">SKT</SelectItem>
-                      <SelectItem value="LG U+">LG U+</SelectItem>
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-              {editForm.formState.errors.carrier && (
+              <Label>지원 통신사</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {getAllCarrierCodes().map((carrierCode) => (
+                  <div key={carrierCode} className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id={`edit-carrier-${carrierCode}`}
+                      value={carrierCode}
+                      checked={editForm.watch('supportedCarriers')?.includes(carrierCode) || false}
+                      onChange={(e) => {
+                        const currentCarriers = editForm.getValues('supportedCarriers') || [];
+                        if (e.target.checked) {
+                          editForm.setValue('supportedCarriers', [...currentCarriers, carrierCode]);
+                        } else {
+                          editForm.setValue('supportedCarriers', currentCarriers.filter(c => c !== carrierCode));
+                        }
+                      }}
+                      className="rounded border-gray-300"
+                    />
+                    <Label htmlFor={`edit-carrier-${carrierCode}`} className="text-sm">
+                      {CARRIER_LABELS[carrierCode]}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+              {editForm.formState.errors.supportedCarriers && (
                 <p className="text-sm text-destructive">
-                  {editForm.formState.errors.carrier.message}
+                  {editForm.formState.errors.supportedCarriers.message}
                 </p>
               )}
             </div>
@@ -1059,10 +1173,11 @@ export default function AdminDashboard() {
                       <SelectValue placeholder="제조사 선택" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="삼성">삼성</SelectItem>
-                      <SelectItem value="애플">애플</SelectItem>
-                      <SelectItem value="LG">LG</SelectItem>
-                      <SelectItem value="기타">기타</SelectItem>
+                      {getAllManufacturerCodes().map((manufacturerCode) => (
+                        <SelectItem key={manufacturerCode} value={manufacturerCode}>
+                          {MANUFACTURER_LABELS[manufacturerCode]}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 )}
@@ -1083,6 +1198,39 @@ export default function AdminDashboard() {
               {editForm.formState.errors.model && (
                 <p className="text-sm text-destructive">
                   {editForm.formState.errors.model.message}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label>지원 용량</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {getAllStorageCodes().map((storageCode) => (
+                  <div key={storageCode} className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id={`edit-storage-${storageCode}`}
+                      value={storageCode}
+                      checked={editForm.watch('supportedStorage')?.includes(storageCode) || false}
+                      onChange={(e) => {
+                        const currentStorage = editForm.getValues('supportedStorage') || [];
+                        if (e.target.checked) {
+                          editForm.setValue('supportedStorage', [...currentStorage, storageCode]);
+                        } else {
+                          editForm.setValue('supportedStorage', currentStorage.filter(s => s !== storageCode));
+                        }
+                      }}
+                      className="rounded border-gray-300"
+                    />
+                    <Label htmlFor={`edit-storage-${storageCode}`} className="text-sm">
+                      {STORAGE_LABELS[storageCode]}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+              {editForm.formState.errors.supportedStorage && (
+                <p className="text-sm text-destructive">
+                  {editForm.formState.errors.supportedStorage.message}
                 </p>
               )}
             </div>

@@ -1,72 +1,81 @@
-// 기본 상품 인터페이스
-export interface Product {
-  id: string;
-  categoryId: string;
-  name: string;
-  brand: string;
-  model: string;
-  color: string;
-  storage: string;
-  imageUrl: string;
-  specifications: Record<string, any>;
-  officialPrice: number;
-  isActive: boolean;
-  isDeleted: boolean; // Soft Delete
-  isFavorite: boolean;
-  deletedAt?: string;
-  deletedBy?: string;
-  deletionReason?: string;
-  releaseDate: string;
-  createdAt: string;
-  updatedAt: string;
-}
+// 기존 DeviceModel과 Product 인터페이스는 유지하고 추가 타입 정의
 
-// 상품 스냅샷 (예약/즐겨찾기 시 저장되는 정보)
-export interface ProductSnapshot {
-  id: string;
-  name: string;
-  brand: string;
-  model: string;
-  color: string;
-  storage: string;
-  imageUrl: string;
-  officialPrice: number;
-  isDeleted: boolean;
-  deletedAt?: string;
-  deletionReason?: string;
-  snapshotCreatedAt: string; // 스냅샷 생성 시간
-}
-
-// 매장별 상품 정보
-export interface StoreProduct {
-  id: string;
+// 상품 생성/수정 요청 타입
+export interface ProductCreateRequest {
   storeId: string;
-  productId: string;
+  deviceModelId: string;
+  carrier: CarrierCode;
+  storage: StorageCode;
   price: number;
-  discountPrice: number;
-  stock: number;
-  conditions: string;
-  promotionOptions: Record<string, any>;
-  isAvailable: boolean;
-  isDeleted: boolean; // Soft Delete
-  deletedAt?: string;
-  deletedBy?: string;
-  deletionReason?: string;
-  productCarrier: "kt" | "skt" | "lgu";
-  lastUpdated: string;
-  createdAt: string;
-  updatedAt: string;
+  conditions: string[];
+  isActive?: boolean;
 }
 
-// UI용 상품 표시 유틸리티 타입
-export interface ProductDisplayInfo {
-  name: string;
-  model: string;
-  storage: string;
-  carrier: string;
-  price: number;
-  isDeleted: boolean;
-  deletedAt?: string;
-  deletionStatus?: 'deleted_product' | 'deleted_store_product' | 'unavailable';
-  deletionMessage?: string;
+export interface ProductUpdateRequest {
+  carrier?: CarrierCode;
+  storage?: StorageCode;
+  price?: number;
+  conditions?: string[];
+  isActive?: boolean;
+}
+
+// 상품 검색 요청 타입
+export interface ProductSearchRequest {
+  storeId?: string;
+  deviceModelId?: string;
+  carrier?: CarrierCode;
+  storage?: StorageCode;
+  manufacturer?: ManufacturerCode;
+  model?: string;
+  isActive?: boolean;
+  page?: number;
+  limit?: number;
+}
+
+// 상품 검색 결과 타입
+export interface ProductSearchResult {
+  products: ProductWithDetails[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+// 상품 상세 정보 (DeviceModel 정보 포함)
+export interface ProductWithDetails extends Product {
+  deviceModel: {
+    id: string;
+    manufacturer: ManufacturerCode;
+    model: string;
+    imageUrl?: string;
+  };
+}
+
+// 상품 통계 타입
+export interface ProductStats {
+  total: number;
+  active: number;
+  inactive: number;
+  byManufacturer: Record<ManufacturerCode, number>;
+  byCarrier: Record<CarrierCode, number>;
+  byStorage: Record<StorageCode, number>;
+}
+
+// 상품 일괄 작업 타입
+export interface ProductBulkOperation {
+  type: 'create' | 'update' | 'delete';
+  productIds?: string[];
+  products?: ProductCreateRequest[];
+  updates?: Record<string, ProductUpdateRequest>;
+}
+
+// 상품 일괄 작업 결과 타입
+export interface ProductBulkResult {
+  success: boolean;
+  created?: number;
+  updated?: number;
+  deleted?: number;
+  errors?: Array<{
+    productId?: string;
+    error: string;
+  }>;
 }
