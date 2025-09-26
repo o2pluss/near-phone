@@ -59,6 +59,162 @@ INSERT INTO public.profiles (
 FROM auth.users u 
 WHERE u.email = 'admin@example.com';
 
+-- Create test seller user
+INSERT INTO auth.users (
+  instance_id,
+  id,
+  aud,
+  role,
+  email,
+  encrypted_password,
+  email_confirmed_at,
+  recovery_sent_at,
+  last_sign_in_at,
+  raw_app_meta_data,
+  raw_user_meta_data,
+  created_at,
+  updated_at,
+  confirmation_token,
+  email_change,
+  email_change_token_new,
+  recovery_token
+) VALUES (
+  '00000000-0000-0000-0000-000000000000',
+  gen_random_uuid(),
+  'authenticated',
+  'authenticated',
+  'seller@example.com',
+  crypt('seller123', gen_salt('bf')),
+  NOW(),
+  NULL,
+  NOW(),
+  '{"provider": "email", "providers": ["email"]}',
+  '{"role": "seller"}',
+  NOW(),
+  NOW(),
+  '',
+  '',
+  '',
+  ''
+);
+
+-- Create test seller profile
+INSERT INTO public.profiles (
+  user_id,
+  role,
+  name,
+  phone,
+  login_type,
+  is_active,
+  created_at,
+  updated_at
+) SELECT 
+  u.id,
+  'seller',
+  '테스트 판매자',
+  '010-1111-2222',
+  'email',
+  true,
+  NOW(),
+  NOW()
+FROM auth.users u 
+WHERE u.email = 'seller@example.com';
+
+-- Create approved seller application for test seller
+INSERT INTO public.seller_applications (
+  user_id,
+  business_name,
+  business_license,
+  business_address,
+  contact_name,
+  contact_phone,
+  contact_email,
+  business_description,
+  status,
+  reviewed_by,
+  reviewed_at,
+  created_at,
+  updated_at
+) SELECT 
+  u.id,
+  '테스트 매장',
+  '123-45-67890',
+  '서울시 강남구 테스트로 123',
+  '테스트 판매자',
+  '010-1111-2222',
+  'seller@example.com',
+  '테스트용 매장입니다.',
+  'approved',
+  admin_u.id,
+  NOW(),
+  NOW(),
+  NOW()
+FROM auth.users u 
+CROSS JOIN auth.users admin_u
+WHERE u.email = 'seller@example.com' 
+  AND admin_u.email = 'admin@example.com';
+
+-- Create test user
+INSERT INTO auth.users (
+  instance_id,
+  id,
+  aud,
+  role,
+  email,
+  encrypted_password,
+  email_confirmed_at,
+  recovery_sent_at,
+  last_sign_in_at,
+  raw_app_meta_data,
+  raw_user_meta_data,
+  created_at,
+  updated_at,
+  confirmation_token,
+  email_change,
+  email_change_token_new,
+  recovery_token
+) VALUES (
+  '00000000-0000-0000-0000-000000000000',
+  gen_random_uuid(),
+  'authenticated',
+  'authenticated',
+  'user@example.com',
+  crypt('user123', gen_salt('bf')),
+  NOW(),
+  NULL,
+  NOW(),
+  '{"provider": "email", "providers": ["email"]}',
+  '{"role": "user"}',
+  NOW(),
+  NOW(),
+  '',
+  '',
+  '',
+  ''
+);
+
+-- Create test user profile
+INSERT INTO public.profiles (
+  user_id,
+  role,
+  name,
+  phone,
+  login_type,
+  is_active,
+  created_at,
+  updated_at
+) SELECT 
+  u.id,
+  'user',
+  '테스트 사용자',
+  '010-3333-4444',
+  'email',
+  true,
+  NOW(),
+  NOW()
+FROM auth.users u 
+WHERE u.email = 'user@example.com';
+
 -- Minimal seed data for development
 insert into public.products (id, name, brand, model, storage, color, official_price)
 values

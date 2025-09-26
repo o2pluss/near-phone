@@ -50,15 +50,6 @@ export default function StoreManagementPage() {
     router.push('/seller/store-edit?mode=create');
   };
 
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    // 이미지 업로드는 이제 별도 페이지에서 처리
-    console.log('이미지 업로드는 매장 수정 페이지에서 처리됩니다.');
-  };
-
-  const handleImageRemove = (index: number) => {
-    // 이미지 삭제는 이제 별도 페이지에서 처리
-    console.log('이미지 삭제는 매장 수정 페이지에서 처리됩니다.');
-  };
 
   if (isLoading) {
     return (
@@ -98,9 +89,6 @@ export default function StoreManagementPage() {
               images: storeInfo.images,
             }}
             storeImages={storeInfo.images}
-            onEditClick={handleEditClick}
-            onImageUpload={handleImageUpload}
-            onImageRemove={handleImageRemove}
           />
         </div>
       ) : (

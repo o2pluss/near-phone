@@ -57,7 +57,6 @@ interface Store {
     weekday: string;
     saturday: string;
     sunday: string;
-    special?: string;
   };
   productCarrier?: "kt" | "skt" | "lgu";
   images?: string[];
@@ -358,9 +357,6 @@ export default function StoreDetail({
                   <div>평일: {store.businessHours.weekday}</div>
                   <div>토요일: {store.businessHours.saturday}</div>
                   <div>일요일: {store.businessHours.sunday}</div>
-                  {store.businessHours.special && (
-                    <div className="text-orange-600">{store.businessHours.special}</div>
-                  )}
                 </div>
               ) : (
                 <div className="text-muted-foreground text-sm">

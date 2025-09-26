@@ -2,8 +2,7 @@ import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Label } from "../ui/label";
-import { Edit } from "lucide-react";
-import StoreImageGallery from "./StoreImageGallery";
+import { Camera } from "lucide-react";
 
 interface StoreInfo {
   id: string;
@@ -16,7 +15,6 @@ interface StoreInfo {
     weekday: string;
     saturday: string;
     sunday: string;
-    holiday: string;
   };
   images: string[];
 }
@@ -24,27 +22,17 @@ interface StoreInfo {
 interface StoreManagementProps {
   storeInfo: StoreInfo;
   storeImages: string[];
-  onEditClick: () => void;
-  onImageUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
-  onImageRemove: (index: number) => void;
 }
 
 export default function StoreManagement({
   storeInfo,
   storeImages,
-  onEditClick,
-  onImageUpload,
-  onImageRemove,
 }: StoreManagementProps) {
   return (
     <div className="space-y-4">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>매장 정보</CardTitle>
-          <Button onClick={onEditClick}>
-            <Edit className="h-4 w-4 mr-2" />
-            수정
-          </Button>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -96,21 +84,36 @@ export default function StoreManagement({
                 {storeInfo.hours.sunday}
               </p>
             </div>
-            <div>
-              <Label>예외 영업시간</Label>
-              <p className="font-medium">
-                {storeInfo.hours.holiday}
-              </p>
-            </div>
           </div>
         </CardContent>
       </Card>
 
-      <StoreImageGallery
-        images={storeImages}
-        onImageUpload={onImageUpload}
-        onImageRemove={onImageRemove}
-      />
+      {/* 매장 사진 갤러리 */}
+      {storeImages && storeImages.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <Camera className="h-5 w-5" />
+              <span>매장 사진 ({storeImages.length}/5)</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+              {storeImages.map((image, index) => (
+                <div key={index} className="relative group">
+                  <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden">
+                    <img
+                      src={image}
+                      alt={`매장 사진 ${index + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

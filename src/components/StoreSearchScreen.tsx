@@ -71,7 +71,6 @@ interface Store {
     weekday: string;
     saturday: string;
     sunday: string;
-    special?: string; // 예외 영업시간
   };
 }
 

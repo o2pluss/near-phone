@@ -45,8 +45,10 @@ import {
   TabsList,
   TabsTrigger,
 } from "../ui/tabs";
-import { Plus, Trash2, Copy, Save, X, AlertCircle, ChevronDown, Star } from "lucide-react";
+import { Plus, Trash2, Copy, Save, X, AlertCircle, ChevronDown, Star, Table as TableIcon } from "lucide-react";
 import { getFavoriteModels, getPhoneModels, updatePhoneModel, type PhoneModel } from "../../lib/phoneModels";
+import { ADDITIONAL_CONDITIONS, convertKeysToTexts, convertTextsToKeys, type AdditionalConditionKey } from "@/lib/constants";
+import ProductTableEditor from "./ProductTableEditor";
 
 interface Product {
   id: string;
@@ -54,7 +56,7 @@ interface Product {
   carrier: string;
   storage: string;
   price: number;
-  conditions: string[];
+  conditions: string[]; // UI에서는 텍스트로 표시하지만 내부적으로는 KEY 사용
   isActive: boolean;
   createdAt?: Date;
   updatedAt?: Date;
@@ -87,10 +89,7 @@ const conditionOptions = [
   "번호이동",
   "신규가입", 
   "기기변경",
-  "카드할인",
-  "결합할인",
-  "필수요금제",
-  "부가서비스"
+  ...Object.values(ADDITIONAL_CONDITIONS)
 ];
 
 // 기본 용량 매핑
@@ -118,6 +117,7 @@ export default function ProductBulkEditor({
   const [selectedRowId, setSelectedRowId] = useState<string>("");
   const [phoneModels, setPhoneModels] = useState<PhoneModel[]>(getPhoneModels());
   const [modelTab, setModelTab] = useState<"samsung" | "apple">("samsung");
+  const [editorMode, setEditorMode] = useState<"manual" | "table">("manual");
 
   // 초기 데이터 설정
   useEffect(() => {
@@ -446,7 +446,21 @@ export default function ProductBulkEditor({
         </div>
       </div>
 
-      {/* 빠른 추가 템플릿 - 단일 상품 편집 모드가 아닐 때만 표시 */}
+      {/* 편집 모드 선택 탭 */}
+      <Tabs value={editorMode} onValueChange={(value) => setEditorMode(value as "manual" | "table")}>
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="manual" className="flex items-center space-x-2">
+            <Plus className="h-4 w-4" />
+            <span>수동 입력</span>
+          </TabsTrigger>
+          <TabsTrigger value="table" className="flex items-center space-x-2">
+            <TableIcon className="h-4 w-4" />
+            <span>테이블 입력</span>
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="manual" className="space-y-4">
+          {/* 기존 수동 입력 UI */}
       {!(mode === 'edit' && editingProduct) && (
         <Card>
           <CardHeader>
@@ -716,6 +730,41 @@ export default function ProductBulkEditor({
           </div>
         </DialogContent>
       </Dialog>
+        </TabsContent>
+
+        <TabsContent value="table" className="space-y-4">
+          <ProductTableEditor
+            onSave={(tableProducts) => {
+              // 테이블에서 생성된 상품들을 기존 rows에 추가
+              const newRows: ProductRow[] = tableProducts.map(product => ({
+                id: product.id,
+                model: product.model,
+                carrier: product.carrier,
+                storage: product.storage,
+                price: product.price.toString(),
+                conditions: product.conditions,
+                isActive: product.isActive,
+                isNew: true,
+                hasErrors: false,
+              }));
+              
+              setRows(prev => [...prev, ...newRows]);
+              setHasChanges(true);
+            }}
+            onCancel={() => setEditorMode("manual")}
+            existingProducts={rows.map(row => ({
+              id: row.id,
+              model: row.model,
+              carrier: row.carrier,
+              storage: row.storage,
+              price: parseInt(row.price) || 0,
+              conditions: row.conditions,
+              isActive: row.isActive,
+            }))}
+          />
+        </TabsContent>
+
+      </Tabs>
     </div>
   );
 }

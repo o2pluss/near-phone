@@ -8,6 +8,7 @@ import { Checkbox } from './ui/checkbox';
 import { Slider } from './ui/slider';
 import { useForm, Controller } from 'react-hook-form';
 import { Search, MapPin, Filter, Smartphone } from 'lucide-react';
+import { ADDITIONAL_CONDITIONS } from '@/lib/constants';
 
 interface SearchFormData {
   carrier: string;
@@ -88,10 +89,10 @@ export default function StoreSearchFilter({ onSearch }: StoreSearchFilterProps) 
     { key: 'numberPorting', label: '번호이동' },
     { key: 'newSubscription', label: '신규 가입' },
     { key: 'budget', label: '알뜰폰' },
-    { key: 'cardDiscount', label: '카드 할인' },
-    { key: 'bundleDiscount', label: '결합 할인' },
-    { key: 'requiredPlan', label: '필수 요금제' },
-    { key: 'additionalService', label: '부가서비스' },
+    ...Object.entries(ADDITIONAL_CONDITIONS).map(([key, label]) => ({
+      key: key,
+      label: label
+    }))
   ];
 
   return (

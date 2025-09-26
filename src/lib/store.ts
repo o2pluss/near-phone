@@ -13,7 +13,6 @@ export interface StoreInfo {
     weekday: string;
     saturday: string;
     sunday: string;
-    holiday: string;
   };
   images: string[];
   latitude?: number;
@@ -26,7 +25,6 @@ export interface StoreHours {
   weekday: string;
   saturday: string;
   sunday: string;
-  holiday: string;
 }
 
 // 현재 사용자의 매장 정보 조회
@@ -62,7 +60,6 @@ export async function getCurrentUserStore(): Promise<{ data: StoreInfo | null; e
           weekday: '09:00 - 18:00',
           saturday: '09:00 - 18:00',
           sunday: '휴무',
-          holiday: '휴무',
         },
         images: data.images || [],
         latitude: data.latitude,

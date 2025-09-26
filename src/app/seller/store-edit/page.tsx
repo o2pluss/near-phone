@@ -29,7 +29,6 @@ export default function StoreEditPage() {
       weekday: "09:00 - 18:00",
       saturday: "09:00 - 18:00",
       sunday: "휴무",
-      holiday: "휴무",
     },
     images: [],
   });
@@ -43,6 +42,8 @@ export default function StoreEditPage() {
     saturday: { isOpen: true, openTime: '09:00', closeTime: '18:00' },
     sunday: { isOpen: false }
   });
+
+  const [originalImages, setOriginalImages] = useState<string[]>([]);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -116,8 +117,6 @@ export default function StoreEditPage() {
         : '휴무';
     }
     
-    // 공휴일은 기본적으로 휴무
-    result.holiday = '휴무';
     
     return result;
   };
@@ -140,6 +139,7 @@ export default function StoreEditPage() {
 
         if (existingStore) {
           setFormData(existingStore);
+          setOriginalImages(existingStore.images || []);
           setOperatingHours(convertToOperatingHours(existingStore.hours));
         } else {
           setError('매장 정보를 찾을 수 없습니다.');
@@ -203,20 +203,51 @@ export default function StoreEditPage() {
     }
   };
 
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
-    if (files) {
-      const newImages = Array.from(files).map(file => URL.createObjectURL(file));
-      setFormData(prev => ({
-        ...prev,
-        images: [...prev.images, ...newImages]
-      }));
+    if (!files || files.length === 0) return;
+
+    setIsSaving(true);
+    setError(null);
+
+    try {
+      const filesArray = Array.from(files);
+      
+      // 매장 ID가 있으면 즉시 서버에 업로드
+      if (formData.id) {
+        const { uploadStoreImages } = await import('@/lib/imageUpload');
+        const { data: uploadedUrls, error: uploadError } = await uploadStoreImages(filesArray, formData.id);
+        
+        if (uploadError) {
+          console.error('이미지 업로드 오류:', uploadError);
+          setError('이미지 업로드에 실패했습니다.');
+          return;
+        }
+        
+        setFormData(prev => ({
+          ...prev,
+          images: [...prev.images, ...uploadedUrls]
+        }));
+      } else {
+        // 매장 ID가 없으면 로컬 URL로 임시 저장 (매장 생성 시 업로드됨)
+        const newImages = filesArray.map(file => URL.createObjectURL(file));
+        setFormData(prev => ({
+          ...prev,
+          images: [...prev.images, ...newImages]
+        }));
+      }
+    } catch (err) {
+      console.error('이미지 업로드 오류:', err);
+      setError('이미지 업로드에 실패했습니다.');
+    } finally {
+      setIsSaving(false);
+      // 파일 입력 초기화
+      event.target.value = '';
     }
-    // 파일 입력 초기화
-    event.target.value = '';
   };
 
   const handleImageRemove = (index: number) => {
+    // UI에서만 제거하고, 서버 삭제는 저장 시에 처리
     setFormData(prev => ({
       ...prev,
       images: prev.images.filter((_, i) => i !== index)
@@ -266,6 +297,13 @@ export default function StoreEditPage() {
       setError(null);
 
       if (isEdit) {
+        // 삭제된 이미지들을 서버에서도 삭제
+        const deletedImages = originalImages.filter(img => !formData.images.includes(img));
+        if (deletedImages.length > 0) {
+          const { deleteStoreImages } = await import('@/lib/imageUpload');
+          await deleteStoreImages(deletedImages);
+        }
+
         // 매장 수정
         const { data, error } = await updateStore(formData.id!, formData);
         
@@ -464,11 +502,11 @@ export default function StoreEditPage() {
                     asChild
                     variant="outline"
                     size="sm"
-                    disabled={formData.images.length >= 5}
+                    disabled={formData.images.length >= 5 || isSaving}
                   >
                     <span>
                       <Upload className="h-4 w-4 mr-2" />
-                      사진 추가
+                      {isSaving ? '업로드 중...' : '사진 추가'}
                     </span>
                   </Button>
                 </label>
@@ -489,7 +527,7 @@ export default function StoreEditPage() {
                     <Button
                       variant="destructive"
                       size="sm"
-                      className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity w-6 h-6 p-0"
+                      className="absolute -top-2 -right-2 w-6 h-6 p-0 z-10"
                       onClick={() => handleImageRemove(index)}
                     >
                       <X className="h-3 w-3" />

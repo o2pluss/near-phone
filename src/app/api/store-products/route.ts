@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabaseClient';
+import { convertKeysToTexts, convertTextsToKeys, type AdditionalConditionKey } from '@/lib/constants';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -42,8 +43,86 @@ export async function GET(req: NextRequest) {
   
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  
+  // 데이터 변환 (텍스트를 KEY로 변환)
+  const transformedData = data?.map(item => {
+    if (item.conditions) {
+      // conditions 문자열을 배열로 변환하고 KEY로 변환
+      const conditionTexts = typeof item.conditions === 'string' 
+        ? item.conditions.split(',').map((c: string) => c.trim())
+        : item.conditions;
+      
+      const additionalConditionTexts = conditionTexts.filter((c: string) => 
+        !['번호이동', '기기변경'].includes(c)
+      );
+      const additionalConditionKeys = convertTextsToKeys(additionalConditionTexts);
+      const convertedAdditionalConditions = convertKeysToTexts(additionalConditionKeys);
+      
+      return {
+        ...item,
+        conditions: convertedAdditionalConditions
+      };
+    }
+    return item;
+  }) ?? [];
+  
   const nextCursor = data && data.length === limit ? data[data.length - 1].created_at : null;
-  return NextResponse.json({ items: data ?? [], nextCursor });
+  return NextResponse.json({ items: transformedData, nextCursor });
 }
 
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const { storeId, products } = body;
 
+    if (!storeId || !products || !Array.isArray(products)) {
+      return NextResponse.json({ error: 'storeId and products array are required' }, { status: 400 });
+    }
+
+    // 상품 데이터 변환 (KEY를 텍스트로 변환)
+    const transformedProducts = products.map((product: any) => {
+      const { conditions, ...rest } = product;
+      
+      // conditions 배열에서 추가 조건들을 KEY에서 텍스트로 변환
+      const additionalConditionTexts = conditions.filter((c: string) => 
+        !['번호이동', '기기변경'].includes(c)
+      );
+      const additionalConditionKeys = convertTextsToKeys(additionalConditionTexts);
+      const convertedAdditionalConditions = convertKeysToTexts(additionalConditionKeys);
+      
+      return {
+        ...rest,
+        conditions: convertedAdditionalConditions.join(',')
+      };
+    });
+
+    // store_products 테이블에 저장
+    const { data, error } = await supabase
+      .from('store_products')
+      .insert(transformedProducts.map(product => ({
+        store_id: storeId,
+        product_id: product.productId,
+        price: product.price,
+        carrier: product.carrier,
+        storage: product.storage,
+        signup_type: product.condition,
+        conditions: product.conditions,
+        is_available: product.isActive ?? true
+      })))
+      .select();
+
+    if (error) {
+      console.error('Store products insert error:', error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ 
+      message: 'Products saved successfully', 
+      data: data 
+    });
+
+  } catch (error) {
+    console.error('Store products API error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
