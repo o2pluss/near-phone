@@ -73,15 +73,27 @@ export async function middleware(req: NextRequest) {
   response.headers.set('X-Middleware-UserID', user?.id || 'none');
 
   // 권한별 라우트 정의
-  const userRoutes = ['/main', '/search', '/detail', '/favorites', '/reservations', '/mypage', '/reviews'];
+  const userRoutes = ['/favorites', '/reservations', '/mypage', '/reviews'];
   const sellerRoutes = ['/seller', '/store-management', '/store-edit', '/schedule', '/reservation-detail'];
   const adminRoutes = ['/admin'];
-  const publicRoutes = ['/auth/login', '/auth/signup', '/auth/kakao/callback', '/api/kakao', '/pending-approval', '/unauthorized', '/test-middleware'];
+  const publicRoutes = ['/auth/login', '/auth/signup', '/auth/kakao/callback', '/api/kakao', '/pending-approval', '/unauthorized', '/test-middleware', '/', '/main', '/search', '/detail'];
 
   const { pathname } = req.nextUrl;
 
   // 공개 라우트는 모든 사용자 접근 가능
-  if (publicRoutes.some(route => pathname.startsWith(route))) {
+  console.log('=== 라우트 체크 ===');
+  console.log('Pathname:', pathname);
+  console.log('PublicRoutes:', publicRoutes);
+  
+  // 정확한 경로 매칭과 시작 경로 매칭을 구분
+  const isExactMatch = publicRoutes.includes(pathname);
+  const isStartMatch = publicRoutes.some(route => pathname.startsWith(route) && pathname !== route);
+  
+  console.log('Is exact match:', isExactMatch);
+  console.log('Is start match:', isStartMatch);
+  console.log('Is public route:', isExactMatch || isStartMatch);
+  
+  if (isExactMatch || isStartMatch) {
     console.log('공개 라우트, 접근 허용:', pathname);
     return response;
   }

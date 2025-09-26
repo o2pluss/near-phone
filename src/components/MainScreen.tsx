@@ -15,11 +15,15 @@ import { getPhoneModels } from "../lib/phoneModels";
 interface MainScreenProps {
   onSearch: () => void;
   onReviews: () => void;
+  user?: any;
+  profile?: any;
 }
 
 export default function MainScreen({
   onSearch,
   onReviews,
+  user,
+  profile,
 }: MainScreenProps) {
   const phoneModels = getPhoneModels();
 

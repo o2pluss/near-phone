@@ -37,8 +37,8 @@ function AppContent() {
         window.location.href = '/auth/login';
       }
     } else {
-      console.log('사용자 또는 프로필 없음, /auth/login으로 리다이렉트');
-      window.location.href = '/auth/login';
+      console.log('사용자 또는 프로필 없음, /main으로 리다이렉트');
+      window.location.href = '/main';
     }
   }, [user, profile, loading]);
 

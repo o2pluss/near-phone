@@ -73,6 +73,8 @@ interface StoreDetailProps {
   storeId: string;
   onBack: () => void;
   hideConditionsAndBooking?: boolean;
+  user?: any;
+  profile?: any;
 }
 
 
@@ -81,6 +83,8 @@ export default function StoreDetail({
   storeId,
   onBack,
   hideConditionsAndBooking,
+  user,
+  profile,
 }: StoreDetailProps) {
   const queryClient = useQueryClient();
   const productsQuery = useStoreProducts({ storeId }, { enabled: !!storeId });
