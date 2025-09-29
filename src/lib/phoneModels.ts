@@ -6,6 +6,27 @@ export interface PhoneModel {
   isFavorite?: boolean;
 }
 
+// 서버 API 응답 구조에 맞는 DeviceModel 인터페이스
+export interface DeviceModel {
+  id: string;
+  manufacturer: string;
+  deviceName: string;
+  modelName: string;
+  supportedCarriers: string[];
+  supportedStorage: string[];
+  imageUrl?: string;
+  createdAt: string;
+}
+
+// API 응답 구조
+export interface DeviceModelsResponse {
+  data: DeviceModel[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
 // 전역 상태로 관리되는 휴대폰 모델 목록
 let phoneModelsData: PhoneModel[] = [
   {

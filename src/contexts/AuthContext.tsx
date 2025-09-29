@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabaseClient';
+import { initializeSession } from '@/lib/auth';
 
 interface Profile {
   user_id: string;
@@ -36,41 +37,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        console.log('Initial session user, creating temporary profile for:', session.user.id);
-        try {
-          // 실제 프로필 로드 또는 생성
-          const userProfile = await fetchUserProfile(session.user);
-          console.log('초기 프로필 로드 완료, 설정 중:', userProfile);
-          setProfile(userProfile);
-          console.log('초기 프로필 설정 완료');
-        } catch (error) {
-          console.error('초기 프로필 로드 중 오류:', error);
-          // 오류가 발생해도 기본 프로필 생성
-          const fallbackProfile = {
-            user_id: session.user.id,
-            role: 'user' as const,
-            name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || '사용자',
-            phone: session.user.user_metadata?.phone || null,
-            login_type: 'email' as const,
-            is_active: true,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          };
-          console.log('초기 폴백 프로필 설정:', fallbackProfile);
-          setProfile(fallbackProfile);
-        } finally {
-          setLoading(false);
-          console.log('초기 로딩 상태 false로 설정');
+    // Get initial session using the improved auth function
+    const initAuth = async () => {
+      try {
+        console.log('AuthContext: 세션 초기화 시작');
+        const session = await initializeSession();
+        setSession(session);
+        setUser(session?.user ?? null);
+        
+        if (session?.user) {
+          console.log('Initial session user, creating temporary profile for:', session.user.id);
+          try {
+            // 실제 프로필 로드 또는 생성
+            const userProfile = await fetchUserProfile(session.user);
+            setProfile(userProfile);
+          } catch (error) {
+            console.error('초기 프로필 로드 중 오류:', error);
+            // 오류가 발생해도 기본 프로필 생성
+            const fallbackProfile = {
+              user_id: session.user.id,
+              role: 'user' as const,
+              name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || '사용자',
+              phone: session.user.user_metadata?.phone || null,
+              login_type: 'email' as const,
+              is_active: true,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            };
+            console.log('초기 폴백 프로필 설정:', fallbackProfile);
+            setProfile(fallbackProfile);
+          }
         }
-      } else {
+      } catch (error) {
+        console.error('AuthContext 초기화 오류:', error);
+      } finally {
         setLoading(false);
+        console.log('초기 로딩 상태 false로 설정');
       }
-    });
+    };
+    
+    initAuth();
 
     // Listen for auth changes
     const {
@@ -118,7 +124,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const fetchUserProfile = async (user: any) => {
-    console.log('fetchUserProfile 시작:', user.id);
     
     // user_metadata에서 역할 가져오기
     const role = user.user_metadata?.role || 'user';
@@ -134,7 +139,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       updated_at: new Date().toISOString(),
     };
 
-    console.log('프로필 생성 완료:', profile);
     return profile;
   };
 

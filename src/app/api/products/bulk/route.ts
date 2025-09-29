@@ -22,21 +22,53 @@ export async function POST(request: NextRequest) {
     };
 
     if (type === 'create' && products) {
-      // 상품 일괄 생성
-      const { data, error } = await supabase
-        .from('products')
-        .insert(products.map(product => ({
-          store_id: product.storeId,
-          device_model_id: product.deviceModelId,
-          carrier: product.carrier,
-          storage: product.storage,
-          price: product.price,
-          conditions: product.conditions || [],
-          is_active: product.isActive ?? true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })))
-        .select();
+      // 먼저 모든 device_model_id가 존재하는지 검증
+      const deviceModelIds = [...new Set(products.map(p => p.deviceModelId))];
+      console.log('Requested deviceModelIds:', deviceModelIds);
+      
+      const { data: existingModels, error: modelCheckError } = await supabase
+        .from('device_models')
+        .select('id')
+        .in('id', deviceModelIds);
+
+      if (modelCheckError) {
+        console.error('Model check error:', modelCheckError);
+        result.success = false;
+        result.errors?.push({
+          error: `모델 정보 확인 실패: ${modelCheckError.message}`
+        });
+        return NextResponse.json(result, { status: 400 });
+      }
+
+      console.log('Existing models from DB:', existingModels?.map(m => m.id) || []);
+      const existingModelIds = new Set(existingModels?.map(m => m.id) || []);
+      const invalidModelIds = deviceModelIds.filter(id => !existingModelIds.has(id));
+      
+      if (invalidModelIds.length > 0) {
+        console.error('Invalid model IDs:', invalidModelIds);
+        result.success = false;
+        result.errors?.push({
+          error: `존재하지 않는 모델 ID가 포함되어 있습니다: ${invalidModelIds.join(', ')}`
+        });
+        return NextResponse.json(result, { status: 400 });
+      }
+
+        // 상품 일괄 생성
+        const { data, error } = await supabase
+          .from('products')
+          .insert(products.map(product => ({
+            store_id: product.storeId,
+            device_model_id: product.deviceModelId,
+            carrier: product.carrier,
+            storage: product.storage,
+            price: product.price,
+            conditions: product.conditions || [],
+            is_active: product.isActive ?? true,
+            table_id: product.tableId || null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })))
+          .select();
 
       if (error) {
         result.success = false;
@@ -92,7 +124,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json(result);
+    // 성공 여부에 따라 적절한 상태 코드 반환
+    if (result.success) {
+      return NextResponse.json(result, { status: 200 });
+    } else {
+      return NextResponse.json(result, { status: 400 });
+    }
   } catch (error) {
     console.error('API 오류:', error);
     return NextResponse.json(

@@ -159,18 +159,7 @@ export default function SellerSchedule({
     <div className="container mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center space-x-4">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onBack}
-          className="p-2"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
         <div className="flex-1">
-          <h3 className="text-xl font-bold">
-            예약 스케줄
-          </h3>
           <div className="flex items-center space-x-4">
             <p className="text-muted-foreground">
               {new Date(today).toLocaleDateString("ko-KR", {

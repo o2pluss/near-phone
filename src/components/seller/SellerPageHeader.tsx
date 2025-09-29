@@ -7,16 +7,18 @@ import { useRouter } from 'next/navigation';
 interface SellerPageHeaderProps {
   title: string;
   showBackButton?: boolean;
+  backHref?: string;
 }
 
 export default function SellerPageHeader({ 
   title, 
-  showBackButton = true 
+  showBackButton = true,
+  backHref = '/seller'
 }: SellerPageHeaderProps) {
   const router = useRouter();
 
   const handleBack = () => {
-    router.push('/seller');
+    router.push(backHref);
   };
 
   return (

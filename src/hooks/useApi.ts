@@ -64,6 +64,32 @@ export function useProducts(
   });
 }
 
+export function useDeviceModels(
+  params?: Record<string, string | number | undefined>,
+  options?: { enabled?: boolean }
+) {
+  return useQuery<{
+    data: any[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }>({
+    queryKey: ['device-models', params],
+    queryFn: async () => {
+      // undefined 값 필터링
+      const filteredParams = Object.fromEntries(
+        Object.entries(params || {}).filter(([_, value]) => value !== undefined && value !== null && value !== '')
+      );
+      const sp = new URLSearchParams(filteredParams);
+      const res = await fetch(`/api/device-models?${sp.toString()}`);
+      if (!res.ok) throw new Error('Failed to fetch device models');
+      return res.json();
+    },
+    enabled: options?.enabled ?? true,
+  });
+}
+
 export function useStore(
   id: string,
   options?: { enabled?: boolean }

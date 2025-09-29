@@ -1,16 +1,7 @@
 // 상품 관련 API 함수들 (V2 - 통신사+용량 조합 구조)
 
 import { supabase } from './supabaseClient';
-
-export interface DeviceModel {
-  id: string;
-  manufacturer: string;
-  model: string;
-  supportedCarriers: string[];
-  supportedStorage: string[];
-  imageUrl?: string;
-  createdAt: string;
-}
+import { type DeviceModel } from '../types/product';
 
 export interface CarrierStorageCombination {
   carrier: string;
@@ -251,6 +242,12 @@ export async function searchProducts(request: ProductSearchRequest): Promise<Pro
       ),
       seller_applications (
         business_name
+      ),
+      product_tables (
+        id,
+        exposure_start_date,
+        exposure_end_date,
+        is_active
       )
     `)
     .eq('is_active', true);
@@ -281,6 +278,13 @@ export async function searchProducts(request: ProductSearchRequest): Promise<Pro
     query = query.overlaps('conditions', request.conditions);
   }
 
+  // 노출기간 필터링 (현재 날짜가 노출기간 내에 있는 상품만)
+  const today = new Date().toISOString().split('T')[0];
+  query = query
+    .lte('product_tables.exposure_start_date', today)
+    .gte('product_tables.exposure_end_date', today)
+    .eq('product_tables.is_active', true);
+
   const { data, error } = await query.order('price', { ascending: true });
 
   if (error) {
@@ -288,7 +292,8 @@ export async function searchProducts(request: ProductSearchRequest): Promise<Pro
     throw error;
   }
 
-  return data.map(item => ({
+  // 데이터 변환
+  const rawProducts = data.map(item => ({
     id: item.id,
     model: item.device_models.model,
     manufacturer: item.device_models.manufacturer,
@@ -298,8 +303,34 @@ export async function searchProducts(request: ProductSearchRequest): Promise<Pro
     conditions: item.conditions || [],
     storeName: item.seller_applications.business_name,
     storeId: item.store_id,
-    imageUrl: item.device_models.image_url
+    imageUrl: item.device_models.image_url,
+    createdAt: item.created_at
   }));
+
+  // 중복 제거: 같은 모델+통신사+용량+조건 조합 중 최신 데이터만 유지
+  const deduplicatedProducts = rawProducts.reduce((acc: any[], product: any) => {
+    const key = `${product.model}-${product.carrier}-${product.storage}-${product.conditions.sort().join(',')}`;
+    
+    const existingIndex = acc.findIndex(p => {
+      const existingKey = `${p.model}-${p.carrier}-${p.storage}-${p.conditions.sort().join(',')}`;
+      return existingKey === key;
+    });
+    
+    if (existingIndex === -1) {
+      // 새로운 조합이면 추가
+      acc.push(product);
+    } else {
+      // 기존 조합이 있으면 더 최신 데이터로 교체
+      const existing = acc[existingIndex];
+      if (new Date(product.createdAt) > new Date(existing.createdAt)) {
+        acc[existingIndex] = product;
+      }
+    }
+    
+    return acc;
+  }, []);
+
+  return deduplicatedProducts;
 }
 
 // 모델 목록 조회 (매장 찾기용 - 통신사/용량 정보 없이)

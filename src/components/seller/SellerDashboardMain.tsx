@@ -79,7 +79,7 @@ export default function SellerDashboardMain({
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen">
       {/* Main Content */}
       <div className="w-full p-4 sm:p-6">
         {children}

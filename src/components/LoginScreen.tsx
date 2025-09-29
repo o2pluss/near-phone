@@ -207,9 +207,9 @@ export default function LoginScreen({
 
               <div className="text-center text-xs text-muted-foreground space-y-1">
                 <p>테스트 계정:</p>
-                <p>판매자: store@test.com</p>
-                <p>관리자: admin@test.com</p>
-                <p>비밀번호: 123456</p>
+                <p>판매자: seller@example.com</p>
+                <p>관리자: admin@example.com</p>
+                <p>비밀번호: seller123/admin123</p>
               </div>
             </TabsContent>
           </Tabs>

@@ -8,10 +8,12 @@ export async function GET(request: NextRequest) {
     const manufacturer = searchParams.get('manufacturer');
     const carrier = searchParams.get('carrier');
     const storage = searchParams.get('storage');
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '10');
 
     let query = supabase
       .from('device_models')
-      .select('*')
+      .select('*', { count: 'exact' })
       .order('created_at', { ascending: false });
 
     // 필터링 조건 적용
@@ -25,7 +27,12 @@ export async function GET(request: NextRequest) {
       query = query.contains('supported_storage', [storage]);
     }
 
-    const { data, error } = await query;
+    // 페이지네이션 적용
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+    query = query.range(from, to);
+
+    const { data, error, count } = await query;
 
     if (error) {
       console.error('단말기 모델 조회 실패:', error);
@@ -52,14 +59,25 @@ export async function GET(request: NextRequest) {
     const processedData = (data || []).map((item: any) => ({
       id: item.id,
       manufacturer: item.manufacturer,
-      model: item.model,
+      deviceName: item.device_name || item.model || 'Unknown Device', // device_name이 없으면 model 사용, 그것도 없으면 기본값
+      modelName: item.model_name || `MODEL-${item.id.substring(0, 8)}`, // model_name이 없으면 ID 기반 기본값
       supportedCarriers: item.supported_carriers || [],
       supportedStorage: item.supported_storage || [],
       imageUrl: item.image_url,
       createdAt: item.created_at ? new Date(item.created_at).toISOString().split('T')[0] : ''
     }));
 
-    return NextResponse.json(processedData);
+    // 페이지네이션 응답
+    const totalPages = Math.ceil((count || 0) / limit);
+    const response = {
+      data: processedData,
+      total: count || 0,
+      page,
+      limit,
+      totalPages
+    };
+
+    return NextResponse.json(response);
   } catch (error) {
     console.error('API 오류:', error);
     return NextResponse.json(
@@ -76,15 +94,17 @@ export async function POST(request: NextRequest) {
     const {
       manufacturer,
       model,
+      device_name,
+      model_name,
       supported_carriers,
       supported_storage,
       image_url
     } = body;
 
-    // 필수 필드 검증
-    if (!manufacturer || !model || !supported_carriers || !supported_storage) {
+    // 필수 필드 검증 (프론트엔드 사용 패턴에 맞게)
+    if (!manufacturer || !device_name || !model_name || !supported_carriers || !supported_storage) {
       return NextResponse.json(
-        { error: '필수 필드가 누락되었습니다.' },
+        { error: '필수 필드가 누락되었습니다. (manufacturer, device_name, model_name, supported_carriers, supported_storage 필수)' },
         { status: 400 }
       );
     }
@@ -93,7 +113,9 @@ export async function POST(request: NextRequest) {
       .from('device_models')
       .insert([{
         manufacturer,
-        model,
+        model: model || device_name || 'Unknown Model', // model이 없으면 device_name 사용, 그것도 없으면 기본값
+        device_name,
+        model_name,
         supported_carriers,
         supported_storage,
         image_url: image_url || null,
@@ -132,7 +154,8 @@ export async function POST(request: NextRequest) {
     const processedData = {
       id: data.id,
       manufacturer: data.manufacturer,
-      model: data.model,
+      deviceName: data.device_name || data.model || 'Unknown Device',
+      modelName: data.model_name || `MODEL-${data.id.substring(0, 8)}`,
       supportedCarriers: data.supported_carriers || [],
       supportedStorage: data.supported_storage || [],
       imageUrl: data.image_url,

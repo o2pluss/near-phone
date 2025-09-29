@@ -32,7 +32,8 @@ export async function GET(request: NextRequest) {
     const processedData = (data || []).map((item: any) => ({
       id: item.id,
       manufacturer: item.manufacturer,
-      model: item.model,
+      deviceName: item.device_name || item.model || 'Unknown Device',
+      modelName: item.model_name || `MODEL-${item.id.substring(0, 8)}`,
       supportedCarriers: item.supported_carriers || [],
       supportedStorage: item.supported_storage || [],
       imageUrl: item.image_url,

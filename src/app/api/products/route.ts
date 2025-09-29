@@ -34,6 +34,12 @@ export async function GET(request: NextRequest) {
           manufacturer,
           model,
           image_url
+        ),
+        product_tables!inner(
+          id,
+          exposure_start_date,
+          exposure_end_date,
+          is_active
         )
       `)
       .order('created_at', { ascending: false });
@@ -56,10 +62,14 @@ export async function GET(request: NextRequest) {
       query = query.eq('is_active', isActive === 'true');
     }
 
-    // 페이지네이션
-    const from = (page - 1) * limit;
-    const to = from + limit - 1;
-    query = query.range(from, to);
+    // 노출기간 필터링 (현재 날짜가 노출기간 내에 있는 상품만)
+    const today = new Date().toISOString().split('T')[0];
+    query = query
+      .lte('product_tables.exposure_start_date', today)
+      .gte('product_tables.exposure_end_date', today)
+      .eq('product_tables.is_active', true);
+
+    // 페이지네이션은 중복 제거 후에 적용하므로 여기서는 제거
 
     console.log('Supabase 쿼리 실행 중...');
     const { data, error, count } = await query;
@@ -99,7 +109,7 @@ export async function GET(request: NextRequest) {
     }
 
     // 데이터 변환
-    const products: ProductWithDetails[] = (data || []).map((item: any) => ({
+    const rawProducts = (data || []).map((item: any) => ({
       id: item.id,
       storeId: item.store_id,
       deviceModelId: item.device_model_id,
@@ -108,6 +118,8 @@ export async function GET(request: NextRequest) {
       price: item.price,
       conditions: item.conditions || [],
       isActive: item.is_active,
+      exposureStartDate: item.product_tables?.exposure_start_date || '',
+      exposureEndDate: item.product_tables?.exposure_end_date || '',
       createdAt: item.created_at ? new Date(item.created_at).toISOString().split('T')[0] : '',
       updatedAt: item.updated_at ? new Date(item.updated_at).toISOString().split('T')[0] : '',
       deviceModel: {
@@ -117,6 +129,31 @@ export async function GET(request: NextRequest) {
         imageUrl: item.device_models.image_url
       }
     }));
+
+    // 중복 제거: 같은 모델+통신사+용량+조건 조합 중 최신 데이터만 유지
+    const deduplicatedProducts = rawProducts.reduce((acc: ProductWithDetails[], product: ProductWithDetails) => {
+      const key = `${product.deviceModelId}-${product.carrier}-${product.storage}-${product.conditions.sort().join(',')}`;
+      
+      const existingIndex = acc.findIndex(p => {
+        const existingKey = `${p.deviceModelId}-${p.carrier}-${p.storage}-${p.conditions.sort().join(',')}`;
+        return existingKey === key;
+      });
+      
+      if (existingIndex === -1) {
+        // 새로운 조합이면 추가
+        acc.push(product);
+      } else {
+        // 기존 조합이 있으면 더 최신 데이터로 교체
+        const existing = acc[existingIndex];
+        if (new Date(product.createdAt) > new Date(existing.createdAt)) {
+          acc[existingIndex] = product;
+        }
+      }
+      
+      return acc;
+    }, []);
+
+    const products: ProductWithDetails[] = deduplicatedProducts;
 
     // 제조사/모델 필터링 (PostgreSQL에서 처리)
     let filteredProducts = products;
@@ -129,9 +166,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // 중복 제거 후 페이지네이션 적용
+    const total = filteredProducts.length;
+    const from = (page - 1) * limit;
+    const to = from + limit;
+    const paginatedProducts = filteredProducts.slice(from, to);
+
     const result: ProductSearchResult = {
-      products: filteredProducts,
-      total: count || 0,
+      products: paginatedProducts,
+      total,
       page,
       limit
     };

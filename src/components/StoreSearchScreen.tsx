@@ -47,8 +47,8 @@ import {
 } from "lucide-react";
 import { getConditionStyle } from "../lib/conditionStyles";
 import { StoreConditionChips } from "./StoreConditionChips";
-import { getPhoneModels, type PhoneModel } from "../lib/phoneModels";
-import { useStores, useStoreProducts, useProducts } from "@/hooks/useApi";
+import { getPhoneModels, type PhoneModel, type DeviceModel, type DeviceModelsResponse } from "../lib/phoneModels";
+import { useStores, useStoreProducts, useDeviceModels } from "@/hooks/useApi";
 
 interface Store {
   id: string;
@@ -93,8 +93,8 @@ export default function StoreSearchScreen({
   onStoreSelect,
   onBack,
 }: StoreSearchScreenProps) {
-  // 실제 products 데이터 조회
-  const productsQuery = useProducts({ enabled: true });
+  // 실제 device-models 데이터 조회
+  const deviceModelsQuery = useDeviceModels({ page: 1, limit: 1000 }, { enabled: true });
   const [phoneModels, setPhoneModels] = useState<PhoneModel[]>([]);
   const [viewMode, setViewMode] = useState<"list" | "map">(
     "list",
@@ -164,20 +164,30 @@ export default function StoreSearchScreen({
   const storesQuery = useStores(storeSearchParams, { enabled: false }); // 매장 검색 비활성화
   const storeProductsQuery = useStoreProducts(productFilterParams, { enabled: hasProductFilters });
 
-  // products 데이터를 PhoneModel 형태로 변환
+  // device-models 데이터를 PhoneModel 형태로 변환
   useEffect(() => {
-    if (productsQuery.data) {
-      const items = productsQuery.data.pages.flatMap((p: any) => p.items) as any[];
-      const models: PhoneModel[] = items.map((product: any) => ({
-        id: product.id,
-        name: product.name,
-        brand: product.brand?.toLowerCase() === 'samsung' ? 'samsung' : 'apple', // 대소문자 구분 없이 처리
-        image: product.image_url || "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=300&h=200&fit=crop",
-        isFavorite: false, // 기본값
-      }));
-      setPhoneModels(models);
+    if (deviceModelsQuery.data && deviceModelsQuery.data.data) {
+      try {
+        const items = deviceModelsQuery.data.data as DeviceModel[];
+        
+        const models: PhoneModel[] = items
+          .filter((device: DeviceModel) => device && device.id) // device가 존재하고 id가 있는 경우만 필터링
+          .map((device: DeviceModel) => ({
+            id: device.id,
+            name: device.deviceName || device.modelName || '이름 없음',
+            brand: device.manufacturer?.toLowerCase() === 'samsung' ? 'samsung' : 'apple', // 대소문자 구분 없이 처리
+            image: device.imageUrl || "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=300&h=200&fit=crop",
+            isFavorite: false, // 기본값
+          }));
+        setPhoneModels(models);
+      } catch (error) {
+        console.error('디바이스 모델 데이터 변환 중 오류 발생:', error);
+        setPhoneModels([]);
+      }
+    } else {
+      setPhoneModels([]);
     }
-  }, [productsQuery.data]);
+  }, [deviceModelsQuery.data]);
 
   // 필터 적용 함수
   const applyFilters = () => {
@@ -263,72 +273,105 @@ export default function StoreSearchScreen({
 
   // 정렬된 매장 목록
   const sortedStores = useMemo(() => {
-    if (hasProductFilters && storeProductsQuery.data) {
-      const items = storeProductsQuery.data.pages.flatMap((p: any) => p.items) as any[];
-      
-      // 상품이 없으면 빈 배열 반환 (안내 메시지 표시용)
-      if (items.length === 0) {
+    if (hasProductFilters && storeProductsQuery.data && storeProductsQuery.data.pages) {
+      try {
+        const items = storeProductsQuery.data.pages.flatMap((p: any) => {
+          // pages 배열의 각 항목이 올바른 구조인지 확인
+          if (p && Array.isArray(p.products)) {
+            return p.products;
+          } else if (p && Array.isArray(p.items)) {
+            return p.items;
+          } else if (Array.isArray(p)) {
+            return p;
+          }
+          return [];
+        }) as any[];
+        
+        // 상품이 없으면 빈 배열 반환 (안내 메시지 표시용)
+        if (items.length === 0) {
+          return [];
+        }
+        
+        // store_id 기준으로 대표 상품을 선택하여 스토어 카드로 변환
+        const byStore = new Map<string, any>();
+        for (const it of items) {
+          if (it && it.store_id && !byStore.has(it.store_id)) {
+            byStore.set(it.store_id, it);
+          }
+        }
+        const stores = Array.from(byStore.values()).map((sp: any) => ({
+          id: sp.store_id,
+          name: `매장 ${sp.store_id.slice(-4)}`, // 임시 매장명 (실제로는 매장 API에서 가져와야 함)
+          address: "주소 정보 없음",
+          distance: 0.5,
+          phone: "-",
+          rating: 4.5, // 기본 평점
+          reviewCount: 0,
+          model: sp.products?.model ?? sp.model ?? "",
+          price: Math.floor((sp.price ?? 0) / 10000), // 원화를 만원 단위로 변환
+          originalPrice: Math.floor((sp.discount_price ?? sp.price ?? 0) / 10000),
+          conditions: sp.conditions ? String(sp.conditions).replace(/[{}"]/g, '').split(',').map((c: string) => c.trim()) : [],
+          hours: "09:00 - 21:00", // 기본 영업시간
+          position: { x: Math.random() * 100, y: Math.random() * 100 }, // 랜덤 위치
+          image: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=300&h=200&fit=crop",
+          productCarrier: sp.carrier ?? selectedCarrier,
+          businessHours: {
+            weekday: "09:00 - 21:00",
+            saturday: "10:00 - 20:00",
+            sunday: "10:00 - 19:00"
+          }
+        }));
+        return stores;
+      } catch (error) {
+        console.error('매장 상품 데이터 변환 중 오류 발생:', error);
         return [];
       }
-      
-      // store_id 기준으로 대표 상품을 선택하여 스토어 카드로 변환
-      const byStore = new Map<string, any>();
-      for (const it of items) {
-        if (!byStore.has(it.store_id)) byStore.set(it.store_id, it);
+    }
+
+    let apiItems: any[] = [];
+    if (storesQuery.data && storesQuery.data.pages) {
+      try {
+        apiItems = storesQuery.data.pages.flatMap((p: any) => {
+          if (p && Array.isArray(p.items)) {
+            return p.items;
+          } else if (p && Array.isArray(p.stores)) {
+            return p.stores;
+          } else if (Array.isArray(p)) {
+            return p;
+          }
+          return [];
+        });
+      } catch (error) {
+        console.error('매장 데이터 변환 중 오류 발생:', error);
+        apiItems = [];
       }
-      const stores = Array.from(byStore.values()).map((sp: any) => ({
-        id: sp.store_id,
-        name: `매장 ${sp.store_id.slice(-4)}`, // 임시 매장명 (실제로는 매장 API에서 가져와야 함)
-        address: "주소 정보 없음",
+    }
+    
+    const stores = apiItems
+      .filter((s) => s && s.id) // 유효한 매장 데이터만 필터링
+      .map((s) => ({
+        id: s.id,
+        name: s.name || "매장명 없음",
+        address: s.address ?? "주소 정보 없음",
         distance: 0.5,
-        phone: "-",
-        rating: 4.5, // 기본 평점
-        reviewCount: 0,
-        model: sp.products?.model ?? "",
-        price: Math.floor((sp.price ?? 0) / 10000), // 원화를 만원 단위로 변환
-        originalPrice: Math.floor((sp.discount_price ?? sp.price ?? 0) / 10000),
-        conditions: sp.conditions ? String(sp.conditions).replace(/[{}"]/g, '').split(',').map((c: string) => c.trim()) : [],
-        hours: "09:00 - 21:00", // 기본 영업시간
-        position: { x: Math.random() * 100, y: Math.random() * 100 }, // 랜덤 위치
-        image: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=300&h=200&fit=crop",
-        productCarrier: sp.carrier ?? selectedCarrier,
+        phone: s.phone ?? "-",
+        rating: s.rating ?? 4.5,
+        reviewCount: s.review_count ?? 0,
+        model: "",
+        price: 0,
+        originalPrice: 0,
+        conditions: [],
+        hours: "09:00 - 21:00",
+        position: { x: Math.random() * 100, y: Math.random() * 100 },
+        image:
+          "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=300&h=200&fit=crop",
+        productCarrier: selectedCarrier as any,
         businessHours: {
           weekday: "09:00 - 21:00",
           saturday: "10:00 - 20:00",
           sunday: "10:00 - 19:00"
         }
       }));
-      return stores;
-    }
-
-    const apiItems = storesQuery.data
-      ? (storesQuery.data.pages.flatMap((p: any) => p.items) as any[])
-      : null;
-    const stores = apiItems
-      ? apiItems.map((s) => ({
-          id: s.id,
-          name: s.name,
-          address: s.address ?? "주소 정보 없음",
-          distance: 0.5,
-          phone: s.phone ?? "-",
-          rating: s.rating ?? 4.5,
-          reviewCount: s.review_count ?? 0,
-          model: "",
-          price: 0,
-          originalPrice: 0,
-          conditions: [],
-          hours: "09:00 - 21:00",
-          position: { x: Math.random() * 100, y: Math.random() * 100 },
-          image:
-            "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=300&h=200&fit=crop",
-          productCarrier: selectedCarrier as any,
-          businessHours: {
-            weekday: "09:00 - 21:00",
-            saturday: "10:00 - 20:00",
-            sunday: "10:00 - 19:00"
-          }
-        }))
-      : [];
 
     if (sortBy === "거리순") {
       return stores.sort((a, b) => a.distance - b.distance);
@@ -609,7 +652,7 @@ export default function StoreSearchScreen({
 
             {/* 모델 목록 */}
             <div className="space-y-2 max-h-96 overflow-y-auto">
-              {productsQuery.isLoading ? (
+              {deviceModelsQuery.isLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <div className="text-sm text-muted-foreground">모델을 불러오는 중...</div>
                 </div>

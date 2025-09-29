@@ -31,7 +31,8 @@ export async function GET(
     const processedData = {
       id: data.id,
       manufacturer: data.manufacturer,
-      model: data.model,
+      deviceName: data.device_name || data.model || 'Unknown Device',
+      modelName: data.model_name || `MODEL-${data.id.substring(0, 8)}`,
       supportedCarriers: data.supported_carriers || [],
       supportedStorage: data.supported_storage || [],
       imageUrl: data.image_url,
@@ -57,14 +58,15 @@ export async function PUT(
     const body = await request.json();
     const {
       manufacturer,
-      model,
+      device_name,
+      model_name,
       supported_carriers,
       supported_storage,
       image_url
     } = body;
 
     // 필수 필드 검증
-    if (!manufacturer || !model || !supported_carriers || !supported_storage) {
+    if (!manufacturer || !device_name || !model_name || !supported_carriers || !supported_storage) {
       return NextResponse.json(
         { error: '필수 필드가 누락되었습니다.' },
         { status: 400 }
@@ -75,7 +77,8 @@ export async function PUT(
       .from('device_models')
       .update({
         manufacturer,
-        model,
+        device_name,
+        model_name,
         supported_carriers,
         supported_storage,
         image_url: image_url || null,
@@ -103,7 +106,8 @@ export async function PUT(
     const processedData = {
       id: data.id,
       manufacturer: data.manufacturer,
-      model: data.model,
+      deviceName: data.device_name || data.model || 'Unknown Device',
+      modelName: data.model_name || `MODEL-${data.id.substring(0, 8)}`,
       supportedCarriers: data.supported_carriers || [],
       supportedStorage: data.supported_storage || [],
       imageUrl: data.image_url,

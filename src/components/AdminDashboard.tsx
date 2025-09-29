@@ -30,7 +30,15 @@ import {
 } from 'lucide-react';
 import ReviewManagement from './admin/ReviewManagement';
 import { supabase } from '../lib/supabaseClient';
-import { getDeviceModels, getDeviceModelById } from '../lib/api/deviceModels';
+import { getDeviceModels, getDeviceModelById, type DeviceModelsResponse } from '../lib/api/deviceModels';
+import { type Product as BaseProduct, type DeviceModel } from '../types/product';
+
+// AdminDashboard에서 사용하는 Product 인터페이스
+interface Product extends BaseProduct {
+  storeId: string;
+  storeName: string;
+  status: 'active' | 'blocked';
+}
 import { 
   CARRIER_CODES, 
   CARRIER_LABELS, 
@@ -69,27 +77,7 @@ interface Store {
   createdAt: string;
 }
 
-interface Product {
-  id: string;
-  storeId: string;
-  storeName: string;
-  model: string;
-  carrier: string;
-  storage: string;
-  price: number;
-  status: 'active' | 'blocked';
-  createdAt: string;
-}
 
-interface DeviceModel {
-  id: string;
-  manufacturer: ManufacturerCode;
-  model: string;
-  supportedCarriers: CarrierCode[]; // 지원하는 통신사 목록
-  supportedStorage: StorageCode[]; // 지원하는 용량 목록
-  imageUrl?: string; // 단말기 이미지 URL
-  createdAt: string;
-}
 
 
 export default function AdminDashboard() {
@@ -97,6 +85,13 @@ export default function AdminDashboard() {
   const [stores, setStores] = useState<Store[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [deviceModels, setDeviceModels] = useState<DeviceModel[]>([]);
+  
+  // 페이지네이션 상태
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [pageSize] = useState(10); // 페이지당 10개
+  
   const [isDeviceDialogOpen, setIsDeviceDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingDevice, setEditingDevice] = useState<DeviceModel | null>(null);
@@ -154,32 +149,40 @@ export default function AdminDashboard() {
     fetchSellerApplications();
   }, []);
 
-  // 단말기 모델 데이터 로드
-  useEffect(() => {
-    const fetchDeviceModels = async () => {
-      try {
-        const models = await getDeviceModels();
-        setDeviceModels(models);
-      } catch (error) {
-        console.error('단말기 모델 데이터 로드 실패:', error);
-        setDeviceModels([]);
-        
-        // 사용자에게 알림
-        if (error instanceof Error) {
-          if (error.message.includes('device_models 테이블이 존재하지 않습니다')) {
-            alert('데이터베이스 테이블이 생성되지 않았습니다.\n\n해결 방법:\n1. Supabase 대시보드에서 SQL Editor 열기\n2. scripts/create-device-models-table.sql 파일의 내용 실행\n3. 페이지 새로고침');
-          } else if (error.message.includes('RLS 정책')) {
-            alert('데이터베이스 권한 문제가 발생했습니다.\n\n해결 방법:\n1. Supabase에서 RLS 정책 확인\n2. 개발용으로 RLS 비활성화 고려');
-          } else {
-            alert(`단말기 모델 데이터 로드 실패: ${error.message}`);
-          }
+  // 단말기 모델 데이터 로드 (페이지네이션)
+  const fetchDeviceModels = async (page: number = 1) => {
+    try {
+      setIsLoading(true);
+      const response = await getDeviceModels(page, pageSize);
+      setDeviceModels(response.data);
+      setTotalPages(response.totalPages);
+      setTotalCount(response.total);
+      setCurrentPage(response.page);
+    } catch (error) {
+      console.error('단말기 모델 데이터 로드 실패:', error);
+      setDeviceModels([]);
+      setTotalPages(1);
+      setTotalCount(0);
+      
+      // 사용자에게 알림
+      if (error instanceof Error) {
+        if (error.message.includes('device_models 테이블이 존재하지 않습니다')) {
+          alert('데이터베이스 테이블이 생성되지 않았습니다.\n\n해결 방법:\n1. Supabase 대시보드에서 SQL Editor 열기\n2. scripts/create-device-models-table.sql 파일의 내용 실행\n3. 페이지 새로고침');
+        } else if (error.message.includes('RLS 정책')) {
+          alert('데이터베이스 권한 문제가 발생했습니다.\n\n해결 방법:\n1. Supabase에서 RLS 정책 확인\n2. 개발용으로 RLS 비활성화 고려');
         } else {
-          alert('단말기 모델 데이터 로드에 실패했습니다. 데이터베이스 연결을 확인해주세요.');
+          alert(`단말기 모델 데이터 로드 실패: ${error.message}`);
         }
+      } else {
+        alert('단말기 모델 데이터 로드에 실패했습니다. 데이터베이스 연결을 확인해주세요.');
       }
-    };
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-    fetchDeviceModels();
+  useEffect(() => {
+    fetchDeviceModels(1);
   }, []);
 
   // 리뷰 통계 (실제 데이터에서 계산)
@@ -192,7 +195,8 @@ export default function AdminDashboard() {
   const deviceForm = useForm<Omit<DeviceModel, 'id' | 'createdAt'>>({
     defaultValues: {
       manufacturer: MANUFACTURER_CODES.SAMSUNG,
-      model: '',
+      deviceName: '',
+      modelName: '',
       supportedCarriers: [],
       supportedStorage: []
     }
@@ -201,7 +205,8 @@ export default function AdminDashboard() {
   const editForm = useForm<Omit<DeviceModel, 'id' | 'createdAt'>>({
     defaultValues: {
       manufacturer: MANUFACTURER_CODES.SAMSUNG,
-      model: '',
+      deviceName: '',
+      modelName: '',
       supportedCarriers: [],
       supportedStorage: []
     }
@@ -342,7 +347,8 @@ export default function AdminDashboard() {
         },
         body: JSON.stringify({
           manufacturer: data.manufacturer,
-          model: data.model,
+          device_name: data.deviceName,
+          model_name: data.modelName,
           supported_carriers: data.supportedCarriers,
           supported_storage: data.supportedStorage,
           image_url: imagePreview || null
@@ -354,11 +360,13 @@ export default function AdminDashboard() {
       }
 
       const newDevice = await response.json();
-      setDeviceModels([...deviceModels, newDevice]);
+      // 새 단말기 추가 후 현재 페이지 새로고침
+      await fetchDeviceModels(currentPage);
       setIsDeviceDialogOpen(false);
       deviceForm.reset({
         manufacturer: MANUFACTURER_CODES.SAMSUNG,
-        model: '',
+        deviceName: '',
+        modelName: '',
         supportedCarriers: [],
         supportedStorage: []
       });
@@ -384,7 +392,8 @@ export default function AdminDashboard() {
     setIsDeviceDialogOpen(false);
     deviceForm.reset({
       manufacturer: MANUFACTURER_CODES.SAMSUNG,
-      model: '',
+      deviceName: '',
+      modelName: '',
       supportedCarriers: [],
       supportedStorage: []
     });
@@ -401,7 +410,8 @@ export default function AdminDashboard() {
         throw new Error('단말기 모델 삭제에 실패했습니다.');
       }
 
-      setDeviceModels(deviceModels.filter(device => device.id !== deviceId));
+      // 단말기 삭제 후 현재 페이지 새로고침
+      await fetchDeviceModels(currentPage);
     } catch (error) {
       console.error('단말기 모델 삭제 실패:', error);
       alert('단말기 모델 삭제에 실패했습니다.');
@@ -412,7 +422,8 @@ export default function AdminDashboard() {
     setEditingDevice(device);
     editForm.reset({
       manufacturer: device.manufacturer,
-      model: device.model,
+      deviceName: device.deviceName,
+      modelName: device.modelName,
       supportedCarriers: device.supportedCarriers,
       supportedStorage: device.supportedStorage,
       imageUrl: device.imageUrl
@@ -432,7 +443,8 @@ export default function AdminDashboard() {
         },
         body: JSON.stringify({
           manufacturer: data.manufacturer,
-          model: data.model,
+          device_name: data.deviceName,
+          model_name: data.modelName,
           supported_carriers: data.supportedCarriers,
           supported_storage: data.supportedStorage,
           image_url: imagePreview || null
@@ -444,15 +456,15 @@ export default function AdminDashboard() {
       }
 
       const updatedDevice = await response.json();
-      setDeviceModels(deviceModels.map(device => 
-        device.id === editingDevice.id ? updatedDevice : device
-      ));
+      // 단말기 수정 후 현재 페이지 새로고침
+      await fetchDeviceModels(currentPage);
       
       setIsEditDialogOpen(false);
       setEditingDevice(null);
       editForm.reset({
         manufacturer: MANUFACTURER_CODES.SAMSUNG,
-        model: '',
+        deviceName: '',
+        modelName: '',
         supportedCarriers: [],
         supportedStorage: []
       });
@@ -468,7 +480,8 @@ export default function AdminDashboard() {
     setEditingDevice(null);
     editForm.reset({
       manufacturer: MANUFACTURER_CODES.SAMSUNG,
-      model: '',
+      deviceName: '',
+      modelName: '',
       supportedCarriers: [],
       supportedStorage: []
     });
@@ -759,7 +772,7 @@ export default function AdminDashboard() {
               <TableBody>
                 {products.map((product) => (
                   <TableRow key={product.id}>
-                    <TableCell className="font-medium">{product.model}</TableCell>
+                    <TableCell className="font-medium">{product.deviceName}</TableCell>
                     <TableCell>{product.storeName}</TableCell>
                     <TableCell>{product.carrier}</TableCell>
                     <TableCell>{product.storage}</TableCell>
@@ -769,7 +782,7 @@ export default function AdminDashboard() {
                         {product.status === 'active' ? '활성' : '차단'}
                       </Badge>
                     </TableCell>
-                    <TableCell>{product.createdAt}</TableCell>
+                    <TableCell>{product.createdAt?.toLocaleDateString() || 'N/A'}</TableCell>
                     <TableCell>
                       <div className="flex space-x-1">
                         <Button 
@@ -803,7 +816,7 @@ export default function AdminDashboard() {
         {/* Device Model Management */}
         <TabsContent value="devices" className="space-y-4">
           <div className="flex justify-between items-center">
-            <h3 className="text-lg font-semibold">단말기 ({deviceModels.length})</h3>
+            <h3 className="text-lg font-semibold">단말기 ({totalCount})</h3>
             <Button onClick={() => setIsDeviceDialogOpen(true)}>
               <Plus className="h-4 w-4 mr-2" />
               단말기 추가
@@ -824,7 +837,7 @@ export default function AdminDashboard() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {deviceModels.length === 0 ? (
+                {(deviceModels || []).length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center py-8">
                       <div className="flex flex-col items-center space-y-2">
@@ -837,14 +850,14 @@ export default function AdminDashboard() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  deviceModels.map((device) => (
+                  (deviceModels || []).map((device) => (
                   <TableRow key={device.id}>
                     <TableCell>
                       <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center">
                         {device.imageUrl ? (
                           <img 
                             src={device.imageUrl} 
-                            alt={device.model}
+                            alt={device.deviceName}
                             className="w-full h-full object-cover"
                           />
                         ) : (
@@ -853,7 +866,7 @@ export default function AdminDashboard() {
                       </div>
                     </TableCell>
                     <TableCell>{MANUFACTURER_LABELS[device.manufacturer as keyof typeof MANUFACTURER_LABELS] || device.manufacturer || '알 수 없음'}</TableCell>
-                    <TableCell className="font-medium">{device.model}</TableCell>
+                    <TableCell className="font-medium">{device.deviceName}</TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
                         {(device.supportedCarriers || []).map((carrier) => (
@@ -897,6 +910,52 @@ export default function AdminDashboard() {
               </TableBody>
             </Table>
           </Card>
+          
+          {/* 페이지네이션 */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t">
+              <div className="text-sm text-muted-foreground">
+                {totalCount}개 중 {((currentPage - 1) * pageSize) + 1}-{Math.min(currentPage * pageSize, totalCount)}개 표시
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fetchDeviceModels(currentPage - 1)}
+                  disabled={currentPage <= 1 || isLoading}
+                >
+                  이전
+                </Button>
+                
+                <div className="flex items-center space-x-1">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    const pageNum = Math.max(1, Math.min(totalPages - 4, currentPage - 2)) + i;
+                    return (
+                      <Button
+                        key={pageNum}
+                        variant={currentPage === pageNum ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => fetchDeviceModels(pageNum)}
+                        disabled={isLoading}
+                        className="w-8 h-8 p-0"
+                      >
+                        {pageNum}
+                      </Button>
+                    );
+                  })}
+                </div>
+                
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fetchDeviceModels(currentPage + 1)}
+                  disabled={currentPage >= totalPages || isLoading}
+                >
+                  다음
+                </Button>
+              </div>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
 
@@ -1015,14 +1074,25 @@ export default function AdminDashboard() {
             </div>
 
             <div className="space-y-2">
+              <Label>기기명</Label>
+              <Input 
+                {...deviceForm.register('deviceName', { required: '기기명을 입력해주세요' })}
+                placeholder="예: 갤럭시 S25"
+              />
+              {deviceForm.formState.errors.deviceName && (
+                <p className="text-sm text-destructive">
+                  {deviceForm.formState.errors.deviceName.message}
+                </p>
+              )}
+              
               <Label>모델명</Label>
               <Input 
-                {...deviceForm.register('model', { required: '모델명을 입력해주세요' })}
-                placeholder="예: 갤럭시 Z 플립 7"
+                {...deviceForm.register('modelName', { required: '모델명을 입력해주세요' })}
+                placeholder="예: SM-S931N"
               />
-              {deviceForm.formState.errors.model && (
+              {deviceForm.formState.errors.modelName && (
                 <p className="text-sm text-destructive">
-                  {deviceForm.formState.errors.model.message}
+                  {deviceForm.formState.errors.modelName.message}
                 </p>
               )}
             </div>
@@ -1190,14 +1260,25 @@ export default function AdminDashboard() {
             </div>
 
             <div className="space-y-2">
+              <Label>기기명</Label>
+              <Input 
+                {...editForm.register('deviceName', { required: '기기명을 입력해주세요' })}
+                placeholder="예: 갤럭시 S25"
+              />
+              {editForm.formState.errors.deviceName && (
+                <p className="text-sm text-destructive">
+                  {editForm.formState.errors.deviceName.message}
+                </p>
+              )}
+              
               <Label>모델명</Label>
               <Input 
-                {...editForm.register('model', { required: '모델명을 입력해주세요' })}
-                placeholder="예: 갤럭시 Z 플립 7"
+                {...editForm.register('modelName', { required: '모델명을 입력해주세요' })}
+                placeholder="예: SM-S931N"
               />
-              {editForm.formState.errors.model && (
+              {editForm.formState.errors.modelName && (
                 <p className="text-sm text-destructive">
-                  {editForm.formState.errors.model.message}
+                  {editForm.formState.errors.modelName.message}
                 </p>
               )}
             </div>
