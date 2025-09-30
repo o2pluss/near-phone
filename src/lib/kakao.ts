@@ -89,11 +89,13 @@ export const loginWithKakao = async () => {
       throw new Error('카카오 Auth.authorize 함수를 찾을 수 없습니다.');
     }
 
-    console.log('카카오 로그인 리다이렉트 시작');
-    
-    // 리다이렉트 방식으로 카카오 로그인
-    window.location.href = `https://kauth.kakao.com/oauth/authorize?client_id=${process.env.NEXT_PUBLIC_KAKAO_APP_KEY}&redirect_uri=${encodeURIComponent(window.location.origin + '/auth/kakao/callback')}&response_type=code`;
-    
+    console.log('카카오 로그인 리다이렉트 시작 (JS SDK authorize)');
+
+    // JS SDK를 통한 리다이렉트 인가 요청
+    window.Kakao.Auth.authorize({
+      redirectUri: `${window.location.origin}/auth/kakao/callback`,
+    });
+
     // 리다이렉트되므로 여기까지 도달하지 않음
     return Promise.resolve();
   } catch (error) {
