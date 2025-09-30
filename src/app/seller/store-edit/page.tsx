@@ -12,6 +12,7 @@ import { ArrowLeft, Camera, Upload, X, AlertCircle } from "lucide-react";
 import { StoreInfo, getCurrentUserStore, createStore, updateStore, getSellerApplication } from "@/lib/store";
 import OperatingHoursEditor, { OperatingHours } from "@/components/seller/OperatingHoursEditor";
 import SellerPageHeader from "@/components/seller/SellerPageHeader";
+import AddressSearch from "@/components/AddressSearch";
 
 export default function StoreEditPage() {
   const router = useRouter();
@@ -31,6 +32,8 @@ export default function StoreEditPage() {
       sunday: "휴무",
     },
     images: [],
+    latitude: undefined,
+    longitude: undefined,
   });
 
   const [operatingHours, setOperatingHours] = useState<OperatingHours>({
@@ -199,6 +202,23 @@ export default function StoreEditPage() {
       setErrors(prev => ({
         ...prev,
         operatingHours: "",
+      }));
+    }
+  };
+
+  const handleAddressSelect = (address: string, latitude: number, longitude: number) => {
+    setFormData(prev => ({
+      ...prev,
+      address: address,
+      latitude: latitude,
+      longitude: longitude,
+    }));
+    
+    // 주소 에러 메시지 제거
+    if (errors.address) {
+      setErrors(prev => ({
+        ...prev,
+        address: "",
       }));
     }
   };
@@ -435,11 +455,10 @@ export default function StoreEditPage() {
 
                 <div className="space-y-2">
                   <Label htmlFor="address">주소 *</Label>
-                  <Input
-                    id="address"
+                  <AddressSearch
                     value={formData.address}
-                    onChange={(e) => handleInputChange("address", e.target.value)}
-                    placeholder="서울시 강남구 테헤란로 123"
+                    onAddressSelect={handleAddressSelect}
+                    placeholder="주소를 검색하세요"
                   />
                   {errors.address && (
                     <p className="text-sm text-destructive">{errors.address}</p>

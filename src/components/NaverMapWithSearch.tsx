@@ -5,7 +5,7 @@ import { LocateFixedIcon } from 'lucide-react';
 import { Button } from './ui/button';
 import { NaverMapOptions, NaverLatLng, NaverMarkerOptions } from '../types/naver-maps';
 
-interface Store {
+interface MapStore {
   id: string;
   name: string;
   address: string;
@@ -18,8 +18,9 @@ interface Store {
 }
 
 interface NaverMapWithSearchProps {
-  stores: Store[];
-  onStoreSelect?: (store: Store) => void;
+  stores: MapStore[];
+  onStoreSelect?: (store: MapStore) => void;
+  onVisibleStoresChange?: (visibleStores: MapStore[]) => void;
   center?: { lat: number; lng: number };
   zoom?: number;
   className?: string;
@@ -28,6 +29,7 @@ interface NaverMapWithSearchProps {
 export default function NaverMapWithSearch({
   stores,
   onStoreSelect,
+  onVisibleStoresChange,
   center = { lat: 37.5665, lng: 126.9780 },
   zoom = 10,
   className = "w-full h-96"
@@ -94,7 +96,25 @@ export default function NaverMapWithSearch({
         }
       }, 100);
       
-      // 지도 이벤트 리스너는 제거 (필터링 기능 비활성화)
+      // 지도 이동/줌 이벤트 리스너 추가
+      window.naver.maps.Event.addListener(newMap, 'bounds_changed', () => {
+        // 지도 경계가 변경되면 매장 필터링
+        setTimeout(() => {
+          updateVisibleStores(newMap, stores);
+        }, 500);
+      });
+      
+      window.naver.maps.Event.addListener(newMap, 'zoom_changed', () => {
+        // 줌 레벨이 변경되면 매장 필터링
+        setTimeout(() => {
+          updateVisibleStores(newMap, stores);
+        }, 500);
+      });
+      
+      // 초기 매장 필터링
+      setTimeout(() => {
+        updateVisibleStores(newMap, stores);
+      }, 200);
     } catch (error) {
       console.error('지도 초기화 실패:', error);
     }
@@ -102,7 +122,7 @@ export default function NaverMapWithSearch({
 
   // 지도 영역 필터링 기능 비활성화
 
-  // 매장 마커 생성
+  // 매장 마커 생성 (안정적인 좌표 사용)
   const createStoreMarkers = useCallback(() => {
     if (!map || !stores.length) return;
 
@@ -116,7 +136,7 @@ export default function NaverMapWithSearch({
         
         // 가격을 만원 단위로 표시 (기본값 0)
         const price = store.price || 0;
-        const priceText = `${Math.round(price)}만`;
+        const priceText = `${Math.round(price / 10000)}만`;
         
         // 한글을 처리할 수 있도록 encodeURIComponent 사용
         const svgString = `
@@ -155,6 +175,11 @@ export default function NaverMapWithSearch({
       });
 
     setMarkers(newMarkers);
+    
+    // 디버깅을 위한 로그
+    console.log(`마커 생성 완료: ${newMarkers.length}개`, {
+      stores: stores.map(s => ({ id: s.id, lat: s.latitude, lng: s.longitude }))
+    });
   }, [map, stores, onStoreSelect]);
 
   // 매장 마커 업데이트
@@ -162,7 +187,81 @@ export default function NaverMapWithSearch({
     createStoreMarkers();
   }, [createStoreMarkers]);
 
-  // 지도 영역 필터링 기능 비활성화로 인한 useEffect 제거
+  // 지도 영역 내의 매장 필터링 함수
+  const updateVisibleStores = useCallback((mapInstance: any, storesToFilter: MapStore[]) => {
+    if (!mapInstance || !storesToFilter.length || !onVisibleStoresChange) return;
+    
+    const bounds = mapInstance.getBounds();
+    const sw = bounds.getSW(); // 남서쪽 모서리
+    const ne = bounds.getNE(); // 북동쪽 모서리
+    
+    // 지도 중심과 줌 레벨도 확인
+    const center = mapInstance.getCenter();
+    const zoom = mapInstance.getZoom();
+    
+    // 디버깅을 위한 로그
+    console.log('지도 정보:', {
+      center: { lat: center.lat(), lng: center.lng() },
+      zoom: zoom,
+      sw: { lat: sw.lat(), lng: sw.lng() },
+      ne: { lat: ne.lat(), lng: ne.lng() },
+      bounds: {
+        latRange: ne.lat() - sw.lat(),
+        lngRange: ne.lng() - sw.lng()
+      }
+    });
+    
+    const filteredStores = storesToFilter.filter(store => {
+      if (!store.latitude || !store.longitude) return false;
+      
+      const lat = store.latitude;
+      const lng = store.longitude;
+      
+      // 수동 경계 확인 (여유 마진 포함)
+      const margin = 0.01; // 약 1km 정도의 여유
+      const isInBoundsWithMargin = lat >= (sw.lat() - margin) && lat <= (ne.lat() + margin) && 
+                                  lng >= (sw.lng() - margin) && lng <= (ne.lng() + margin);
+      
+      // 지도 중심으로부터의 거리 기반 필터링
+      const centerLat = center.lat();
+      const centerLng = center.lng();
+      const latRange = ne.lat() - sw.lat();
+      const lngRange = ne.lng() - sw.lng();
+      const maxDistance = Math.max(latRange, lngRange) * 0.8; // 지도 크기의 80%
+      
+      const distanceFromCenter = Math.sqrt(
+        Math.pow(lat - centerLat, 2) + Math.pow(lng - centerLng, 2)
+      );
+      
+      const isNearCenter = distanceFromCenter <= maxDistance;
+      
+      // 두 조건 중 하나라도 만족하면 포함
+      const shouldInclude = isInBoundsWithMargin || isNearCenter;
+      
+      // 디버깅을 위한 로그 (처음 3개 매장만)
+      if (storesToFilter.indexOf(store) < 3) {
+        console.log(`매장 ${store.name}:`, {
+          lat, lng,
+          isInBoundsWithMargin,
+          isNearCenter,
+          shouldInclude,
+          distanceFromCenter: distanceFromCenter.toFixed(6),
+          maxDistance: maxDistance.toFixed(6),
+          swLat: sw.lat(),
+          neLat: ne.lat(),
+          swLng: sw.lng(),
+          neLng: ne.lng()
+        });
+      }
+      
+      return shouldInclude;
+    });
+    
+    console.log(`지도 영역 내 매장: ${filteredStores.length}개 (전체: ${storesToFilter.length}개)`);
+    
+    // 부모 컴포넌트에 visible stores 전달
+    onVisibleStoresChange(filteredStores);
+  }, [onVisibleStoresChange]);
 
   // 현재 위치 가져오기
   const getCurrentLocation = () => {
@@ -175,6 +274,11 @@ export default function NaverMapWithSearch({
           setCurrentLocation({ lat: latitude, lng: longitude });
           
           console.log('현재 위치로 이동:', { lat: latitude, lng: longitude });
+          
+          // 현재 위치로 이동 후 매장 필터링
+          setTimeout(() => {
+            updateVisibleStores(map, stores);
+          }, 500);
         },
         (error) => {
           console.error('현재 위치를 가져올 수 없습니다:', error);

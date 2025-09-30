@@ -16,6 +16,7 @@ import { getConditionStyle } from "../lib/conditionStyles";
 import { StoreConditionChips } from "./StoreConditionChips";
 import { getFavoriteProductDisplay, getDeletedProductStyles } from "../utils/productDisplay";
 import { ProductStatusBadge } from "./ui/ProductStatusBadge";
+import { useFavorites } from "../contexts/FavoriteContext";
 
 interface Store {
   id: string;
@@ -53,100 +54,18 @@ interface FavoriteStoresProps {
   onStoreSelect: (store: Store) => void;
 }
 
-const mockFavoriteStores: Store[] = [
-  {
-    id: "2",
-    name: "서초 모바일 센터",
-    address: "서울시 서초구 서초동 456-78",
-    distance: 0.8,
-    phone: "02-2345-6789",
-    rating: 4.5,
-    reviewCount: 89,
-    model: "iPhone 15 Pro",
-    price: 1150000,
-    conditions: ["신규가입", "결합할인"],
-    hours: "10:00 - 20:00",
-    addedDate: "2024-01-15",
-    productCarrier: "kt",
-    storage: "128GB",
-    productSnapshot: {
-      id: "prod-2",
-      name: "iPhone 15 Pro",
-      model: "iPhone 15 Pro",
-      storage: "128GB",
-      price: 1150000,
-      carrier: "kt",
-      conditions: ["신규가입", "결합할인"],
-      isDeleted: false
-    }
-  },
-  {
-    id: "5",
-    name: "신논현 모바일샵",
-    address: "서울시 강남구 신논현동 246-80",
-    distance: 2.1,
-    phone: "02-5678-9012",
-    rating: 4.7,
-    reviewCount: 203,
-    model: "iPhone 15 Pro",
-    price: 1170000,
-    conditions: ["신규가입", "카드할인"],
-    hours: "10:00 - 21:00",
-    addedDate: "2024-01-10",
-    productCarrier: "skt",
-    storage: "256GB",
-    productSnapshot: {
-      id: "prod-5",
-      name: "iPhone 15 Pro",
-      model: "iPhone 15 Pro",
-      storage: "256GB",
-      price: 1170000,
-      carrier: "skt",
-      conditions: ["신규가입", "카드할인"],
-      isDeleted: false
-    }
-  },
-  {
-    id: "7",
-    name: "청담 스마트 스토어",
-    address: "서울시 강남구 청담동 135-79",
-    distance: 1.8,
-    phone: "02-6789-0123",
-    rating: 4.9,
-    reviewCount: 178,
-    model: "Galaxy S24 Ultra",
-    price: 980000,
-    conditions: ["번호이동", "기기변경", "당일개통"],
-    hours: "09:00 - 21:00",
-    addedDate: "2024-01-08",
-    productCarrier: "lgu",
-    storage: "512GB",
-    productSnapshot: {
-      id: "prod-7",
-      name: "Galaxy S24 Ultra",
-      model: "Galaxy S24 Ultra",
-      storage: "512GB",
-      price: 980000,
-      carrier: "lgu",
-      conditions: ["번호이동", "기기변경", "당일개통"],
-      isDeleted: true, // 삭제된 상품 예시
-      deletedAt: "2024-01-20T15:30:00"
-    }
-  },
-];
-
 export default function FavoriteStores({
   onStoreSelect,
 }: FavoriteStoresProps) {
-  const [favoriteStores, setFavoriteStores] = useState<Store[]>(
-    mockFavoriteStores,
-  );
+  const { favoriteStores, isLoading, isError, removeFromFavorites } = useFavorites();
 
-  const removeFavorite = (storeId: string, e: React.MouseEvent) => {
+  const removeFavorite = async (storeId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    setFavoriteStores(
-      favoriteStores.filter((store) => store.id !== storeId),
-    );
+    try {
+      await removeFromFavorites(storeId);
+    } catch (error) {
+      console.error('즐겨찾기 제거 실패:', error);
+    }
   };
 
   const handleStoreClick = (store: Store, e: React.MouseEvent) => {
@@ -167,9 +86,46 @@ export default function FavoriteStores({
     onStoreSelect(store);
   };
 
-  if (favoriteStores.length === 0) {
+  // 로딩 상태
+  if (isLoading) {
     return (
       <div className="h-full flex flex-col bg-white">
+        <div className="flex-1 flex items-center justify-center p-4">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-muted-foreground">즐겨찾기 목록을 불러오는 중...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 에러 상태
+  if (isError) {
+    return (
+      <div className="min-h-screen flex flex-col bg-white">
+        <div className="flex-1 flex items-center justify-center p-4">
+          <div className="text-center">
+            <Heart className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+            <h2 className="text-xl font-semibold mb-2">
+              즐겨찾기 목록을 불러올 수 없습니다
+            </h2>
+            <p className="text-muted-foreground mb-6">
+              잠시 후 다시 시도해주세요
+            </p>
+            <Button variant="outline" onClick={() => window.location.reload()}>
+              다시 시도
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 빈 목록 상태
+  if (favoriteStores.length === 0) {
+    return (
+      <div className="min-h-screen flex flex-col bg-white">
         <div className="flex-1 flex items-center justify-center p-4">
           <div className="text-center">
             <Heart className="h-16 w-16 text-muted-foreground mx-auto mb-4" />

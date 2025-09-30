@@ -5,6 +5,7 @@ import "./globals.css";
 import "@/index.css";
 import ReactQueryClientProvider from "../components/ReactQueryClientProvider";
 import { AuthProvider } from "@/contexts/AuthContext";
+import FavoriteProviderWrapper from "@/components/FavoriteProviderWrapper";
 import KakaoScriptLoader from "../components/KakaoScriptLoader";
 import { Header } from "@/components/Header";
 import { BottomNavigation } from "@/components/BottomNavigation";
@@ -42,13 +43,15 @@ export default function RootLayout({
         <KakaoScriptLoader />
         <ReactQueryClientProvider>
           <AuthProvider>
-            <div className="min-h-screen flex flex-col">
-              <Header />
-              <main className="flex-1 pb-16">
-                {children}
-              </main>
-              <BottomNavigation />
-            </div>
+            <FavoriteProviderWrapper>
+              <div className="min-h-screen flex flex-col">
+                <Header />
+                <main className="flex-1 pb-16">
+                  {children}
+                </main>
+                <BottomNavigation />
+              </div>
+            </FavoriteProviderWrapper>
           </AuthProvider>
         </ReactQueryClientProvider>
       </body>

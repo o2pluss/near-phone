@@ -1,4 +1,5 @@
 import { useInfiniteQuery, useMutation, useQuery } from '@tanstack/react-query';
+import { supabase } from '@/lib/supabaseClient';
 
 export function useStores(
   params?: Record<string, string | number | undefined>,
@@ -161,23 +162,103 @@ export function useCreateReservation() {
   });
 }
 
-export function useFavorite(storeId: string, userId: string) {
-  const add = async () => {
-    const res = await fetch('/api/favorites', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_id: userId, store_id: storeId }),
-    });
-    if (!res.ok) throw new Error('Failed to add favorite');
-    return res.json();
-  };
-  const remove = async () => {
-    const sp = new URLSearchParams({ userId, storeId });
-    const res = await fetch(`/api/favorites?${sp.toString()}`, { method: 'DELETE' });
-    if (!res.ok) throw new Error('Failed to remove favorite');
-    return res.json();
-  };
-  return { add, remove };
+// 즐겨찾기 매장 목록 조회
+export function useFavoriteStores(
+  userId: string,
+  options?: { enabled?: boolean }
+) {
+  return useQuery({
+    queryKey: ['favorite-stores', userId],
+    queryFn: async () => {
+      // Supabase 클라이언트에서 세션 가져오기
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      const res = await fetch(`/api/favorites?user_id=${userId}`, {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || ''}`,
+        },
+      });
+      if (!res.ok) throw new Error('Failed to fetch favorite stores');
+      return res.json();
+    },
+    enabled: options?.enabled ?? true,
+  });
+}
+
+// 즐겨찾기 추가/제거
+export function useFavoriteMutations(userId: string) {
+  const addFavorite = useMutation({
+    mutationFn: async ({ storeId, productId, productSnapshot }: { 
+      storeId: string; 
+      productId?: string; 
+      productSnapshot?: any; 
+    }) => {
+      // Supabase 클라이언트에서 세션 가져오기
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      const res = await fetch('/api/favorites', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || ''}`,
+        },
+        body: JSON.stringify({ 
+          user_id: userId, 
+          store_id: storeId,
+          product_id: productId,
+          product_snapshot: productSnapshot
+        }),
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        console.error('즐겨찾기 추가 오류:', errorData);
+        throw new Error(`Failed to add favorite: ${errorData.error || res.statusText}`);
+      }
+      return res.json();
+    },
+  });
+
+  const removeFavorite = useMutation({
+    mutationFn: async (storeId: string) => {
+      // Supabase 클라이언트에서 세션 가져오기
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      const res = await fetch(`/api/favorites?user_id=${userId}&store_id=${storeId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || ''}`,
+        },
+      });
+      if (!res.ok) throw new Error('Failed to remove favorite');
+      return res.json();
+    },
+  });
+
+  return { addFavorite, removeFavorite };
+}
+
+// 특정 매장의 즐겨찾기 상태 확인
+export function useFavoriteStatus(
+  storeId: string,
+  userId: string,
+  options?: { enabled?: boolean }
+) {
+  return useQuery({
+    queryKey: ['favorite-status', storeId, userId],
+    queryFn: async () => {
+      // Supabase 클라이언트에서 세션 가져오기
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      const res = await fetch(`/api/favorites/status?user_id=${userId}&store_id=${storeId}`, {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || ''}`,
+        },
+      });
+      if (!res.ok) throw new Error('Failed to fetch favorite status');
+      return res.json();
+    },
+    enabled: options?.enabled ?? true,
+  });
 }
 
 

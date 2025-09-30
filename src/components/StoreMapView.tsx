@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { Star, Phone, Clock, X } from 'lucide-react';
+import { Star, Phone, Clock, X, Heart } from 'lucide-react';
 import { formatPrice } from '../utils/formatPrice';
 import NaverMapWithSearch from './NaverMapWithSearch';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
+import { useFavorites } from '../contexts/FavoriteContext';
 
 interface Store {
   id: string;
@@ -31,6 +32,7 @@ interface StoreMapViewProps {
 export default function StoreMapView({ onStoreSelect }: StoreMapViewProps) {
   const [selectedStore, setSelectedStore] = useState<Store | null>(null);
   const [stores, setStores] = useState<Store[]>([]);
+  const { addToFavorites, removeFromFavorites, isFavorite } = useFavorites();
 
   // 매장 데이터 가져오기
   const { data: storesData, isLoading } = useQuery({
@@ -86,6 +88,36 @@ export default function StoreMapView({ onStoreSelect }: StoreMapViewProps) {
     setSelectedStore(null);
   };
 
+  // 즐겨찾기 토글 핸들러
+  const handleFavoriteToggle = async (store: Store, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      if (isFavorite(store.id)) {
+        await removeFromFavorites(store.id);
+      } else {
+        // 기본 상품 스냅샷 생성 (매장 정보만 있는 경우)
+        const productSnapshot = {
+          id: 'default-product',
+          name: store.model || '상품 정보 없음',
+          model: store.model || '상품 정보 없음',
+          storage: '256GB',
+          price: store.price || 0,
+          carrier: store.productCarrier || 'kt',
+          conditions: store.conditions || [],
+          isDeleted: false
+        };
+        
+        await addToFavorites({
+          storeId: store.id,
+          productId: productSnapshot.id,
+          productSnapshot
+        });
+      }
+    } catch (error) {
+      console.error('즐겨찾기 토글 실패:', error);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="h-screen flex items-center justify-center">
@@ -107,7 +139,6 @@ export default function StoreMapView({ onStoreSelect }: StoreMapViewProps) {
           center={{ lat: 37.5665, lng: 126.9780 }}
           zoom={10}
           className="w-full h-full"
-          showSearch={true}
         />
       </div>
 
@@ -119,6 +150,20 @@ export default function StoreMapView({ onStoreSelect }: StoreMapViewProps) {
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center space-x-2 mb-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0 hover:bg-transparent"
+                      onClick={(e) => handleFavoriteToggle(selectedStore, e)}
+                    >
+                      <Heart 
+                        className={`h-4 w-4 flex-shrink-0 ${
+                          isFavorite(selectedStore.id) 
+                            ? 'fill-red-500 text-red-500' 
+                            : 'text-muted-foreground hover:text-red-500'
+                        }`} 
+                      />
+                    </Button>
                     <h3 className="font-semibold">{selectedStore.name}</h3>
                     <div className="flex items-center space-x-1">
                       <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />

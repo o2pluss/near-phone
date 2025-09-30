@@ -1,7 +1,23 @@
 // 네이버 지도 API 타입 정의
 declare global {
   interface Window {
-    naver: any;
+    naver: {
+      maps: {
+        Map: any;
+        LatLng: any;
+        Marker: any;
+        Size: any;
+        Point: any;
+        Event: any;
+        Service: {
+          geocode: (options: any, callback: (status: any, response: any) => void) => void;
+          Status: {
+            OK: string;
+            ERROR: string;
+          };
+        };
+      };
+    };
   }
 }
 

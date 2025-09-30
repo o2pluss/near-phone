@@ -108,7 +108,7 @@ export default function NaverMap({
         
         // 가격을 만원 단위로 표시 (기본값 0)
         const price = store.price || 0;
-        const priceText = `${Math.round(price)}만`;
+        const priceText = `${Math.round(price / 10000)}만`;
         
         // 한글을 처리할 수 있도록 encodeURIComponent 사용
         const svgString = `

@@ -281,7 +281,7 @@ export default function StoreDetail({
                 <img
                   src={store.images![currentImageIndex]}
                   alt={`${store.name} 매장 사진 ${currentImageIndex + 1}`}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-contain"
                 />
               </div>
 

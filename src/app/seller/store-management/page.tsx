@@ -83,8 +83,9 @@ export default function StoreManagementPage() {
               name: storeInfo.name,
               description: storeInfo.description,
               address: storeInfo.address,
+              address_detail: storeInfo.address_detail,
               phone: storeInfo.phone,
-              businessNumber: storeInfo.business_number,
+              business_number: storeInfo.business_number,
               hours: storeInfo.hours,
               images: storeInfo.images,
             }}

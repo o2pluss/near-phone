@@ -52,6 +52,7 @@ import NaverMapWithSearch from "./NaverMapWithSearch";
 import { getPhoneModels, type PhoneModel, type DeviceModel, type DeviceModelsResponse } from "../lib/phoneModels";
 import { getCarrierLabel } from "../lib/constants/codes";
 import { useStores, useStoreSearch, useDeviceModels } from "@/hooks/useApi";
+import { useFavorites } from "../contexts/FavoriteContext";
 
 interface Store {
   id: string;
@@ -98,6 +99,7 @@ export default function StoreSearchScreen({
 }: StoreSearchScreenProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { addToFavorites, removeFromFavorites, isFavorite } = useFavorites();
   
   // 실제 device-models 데이터 조회
   const deviceModelsQuery = useDeviceModels({ page: 1, limit: 1000 }, { enabled: true });
@@ -109,7 +111,12 @@ export default function StoreSearchScreen({
   const [showModelModal, setShowModelModal] = useState(false);
   const [selectedStore, setSelectedStore] =
     useState<Store | null>(null);
-  // 지도 영역 필터링 기능 비활성화
+  const [visibleStores, setVisibleStores] = useState<Store[]>([]);
+  
+  // 지도 영역 필터링 핸들러
+  const handleVisibleStoresChange = useCallback((stores: any[]) => {
+    setVisibleStores(stores);
+  }, []);
   const [selectedCarrier, setSelectedCarrier] =
     useState<string>("kt");
   const [selectedModel, setSelectedModel] =
@@ -379,6 +386,46 @@ export default function StoreSearchScreen({
     }
   };
 
+  // 즐겨찾기 토글 핸들러
+  const handleFavoriteToggle = async (store: Store, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      if (isFavorite(store.id)) {
+        await removeFromFavorites(store.id);
+      } else {
+        // 상품 정보가 있는 경우 상품 스냅샷 생성
+        let productSnapshot = null;
+        if (hasProductFilters && storeSearchQuery.data) {
+          const allProducts = storeSearchQuery.data.pages.flatMap((page: any) => page.items || []);
+          const productInfo = allProducts.find((product: any) => product.store_id === store.id);
+          
+          if (productInfo) {
+            productSnapshot = {
+              id: productInfo.id,
+              name: productInfo.name || productInfo.device_models?.device_name,
+              model: productInfo.device_models?.device_name || productInfo.device_models?.model_name,
+              storage: productInfo.storage,
+              price: productInfo.price || 0, // 원 단위로 저장
+              carrier: productInfo.carrier,
+              conditions: productInfo.conditions || [],
+              isDeleted: productInfo.is_deleted || false,
+              deletedAt: productInfo.deleted_at,
+              deletionReason: productInfo.is_deleted ? '상품이 삭제되었습니다' : undefined
+            };
+          }
+        }
+        
+        await addToFavorites({
+          storeId: store.id,
+          productId: productSnapshot?.id,
+          productSnapshot
+        });
+      }
+    } catch (error) {
+      console.error('즐겨찾기 토글 실패:', error);
+    }
+  };
+
 
 
   const filteredModels = phoneModels.filter(
@@ -448,8 +495,8 @@ export default function StoreSearchScreen({
             rating: storeInfo?.rating || 0,
             reviewCount: storeInfo?.review_count || 0,
             model: sp.device_models?.device_name ?? sp.device_models?.model_name ?? "",
-            price: Math.floor((sp.price ?? 0) / 10000), // 원화를 만원 단위로 변환
-            originalPrice: Math.floor((sp.price ?? 0) / 10000),
+            price: sp.price ?? 0, // 원 단위로 유지
+            originalPrice: sp.price ?? 0,
             conditions: sp.conditions || [],
             hours: getTodayHours(storeInfo?.hours), // 오늘 요일 기준 영업시간
             position: { x: Math.random() * 100, y: Math.random() * 100 }, // 랜덤 위치
@@ -617,6 +664,8 @@ export default function StoreSearchScreen({
           <ListView
             stores={sortedStores}
             onStoreClick={handleStoreClick}
+            onFavoriteToggle={handleFavoriteToggle}
+            isFavorite={isFavorite}
             getConditionStyle={getConditionBadgeStyle}
             sortBy={sortBy}
             setSortBy={setSortBy}
@@ -627,6 +676,9 @@ export default function StoreSearchScreen({
             selectedStore={selectedStore}
             onStoreClick={handleStoreClick}
             onStoreSelect={onStoreSelect}
+            onVisibleStoresChange={handleVisibleStoresChange}
+            onFavoriteToggle={handleFavoriteToggle}
+            isFavorite={isFavorite}
             getConditionStyle={getConditionBadgeStyle}
           />
         )}
@@ -661,7 +713,7 @@ export default function StoreSearchScreen({
             ) : (
               <>
                 <List className="h-4 w-4" />
-                <span>매장 {sortedStores.length}</span>
+                <span>매장 {viewMode === 'map' ? visibleStores.length : sortedStores.length}</span>
               </>
             )}
           </Button>
@@ -835,12 +887,16 @@ export default function StoreSearchScreen({
 function ListView({
   stores,
   onStoreClick,
+  onFavoriteToggle,
+  isFavorite,
   getConditionStyle,
   sortBy,
   setSortBy,
 }: {
   stores: Store[];
   onStoreClick: (store: Store | null) => void;
+  onFavoriteToggle: (store: Store, e: React.MouseEvent) => void;
+  isFavorite: (storeId: string) => boolean;
   getConditionStyle: (condition: string) => {
     icon: React.FC;
     className: string;
@@ -888,13 +944,26 @@ function ListView({
                 {/* 상단: 하트 + 매장명 + 가격 */}
                 <div className="flex items-start justify-between">
                   <div className="flex items-center space-x-2 flex-1">
-                    <Heart className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0 hover:bg-transparent"
+                      onClick={(e) => onFavoriteToggle(store, e)}
+                    >
+                      <Heart 
+                        className={`h-4 w-4 flex-shrink-0 ${
+                          isFavorite(store.id) 
+                            ? 'fill-red-500 text-red-500' 
+                            : 'text-muted-foreground hover:text-red-500'
+                        }`} 
+                      />
+                    </Button>
                     <h3 className="font-semibold text-base">
                       {store.name}
                     </h3>
                   </div>
                   <div className="text-lg font-semibold text-blue-600 ml-2">
-                    {(store.price * 10000).toLocaleString()}원
+                    {store.price.toLocaleString()}원
                   </div>
                 </div>
 
@@ -926,35 +995,57 @@ function MapView({
   selectedStore,
   onStoreClick,
   onStoreSelect,
+  onVisibleStoresChange,
+  onFavoriteToggle,
+  isFavorite,
   getConditionStyle,
 }: {
   stores: Store[];
   selectedStore: Store | null;
   onStoreClick: (store: Store | null) => void;
   onStoreSelect: (store: Store) => void;
+  onVisibleStoresChange?: (visibleStores: any[]) => void;
+  onFavoriteToggle: (store: Store, e: React.MouseEvent) => void;
+  isFavorite: (storeId: string) => boolean;
   getConditionStyle: (condition: string) => {
     icon: React.FC;
     className: string;
   };
 }) {
-  // Store 데이터를 네이버 지도 형식으로 변환
-  const mapStores = stores
-    .filter(store => store.position) // position이 있는 매장만 필터링
-    .map(store => ({
-      id: store.id,
-      name: store.name,
-      address: store.address,
-      latitude: 37.5665 + (store.position.y - 50) * 0.01, // 대략적인 좌표 변환
-      longitude: 126.9780 + (store.position.x - 50) * 0.01,
-      phone: store.phone,
-      rating: store.rating,
-      reviewCount: store.reviewCount || 0,
-      distance: store.distance,
-      model: store.model,
-      price: store.price,
-      conditions: store.conditions,
-      hours: store.hours
-    }));
+  // Store 데이터를 네이버 지도 형식으로 변환 (안정적인 좌표 사용)
+  const mapStores = useMemo(() => {
+    return stores
+      .filter(store => store.position) // position이 있는 매장만 필터링
+      .map(store => {
+        // 안정적인 좌표 생성 (매장 ID 기반)
+        const idHash = store.id.split('').reduce((a, b) => {
+          a = ((a << 5) - a) + b.charCodeAt(0);
+          return a & a;
+        }, 0);
+        
+        // 서울 중심에서 일정한 패턴으로 좌표 생성
+        const baseLat = 37.5665;
+        const baseLng = 126.9780;
+        const latOffset = ((idHash % 100) - 50) * 0.01; // -0.5 ~ +0.5도
+        const lngOffset = ((Math.abs(idHash) % 100) - 50) * 0.01; // -0.5 ~ +0.5도
+        
+        return {
+          id: store.id,
+          name: store.name,
+          address: store.address,
+          latitude: baseLat + latOffset,
+          longitude: baseLng + lngOffset,
+          phone: store.phone,
+          rating: store.rating,
+          reviewCount: store.reviewCount || 0,
+          distance: store.distance,
+          model: store.model,
+          price: store.price,
+          conditions: store.conditions,
+          hours: store.hours
+        };
+      });
+  }, [stores]);
 
   const handleStoreSelect = (store: any) => {
     // 네이버 지도에서 선택된 매장을 원래 형식으로 변환
@@ -969,6 +1060,7 @@ function MapView({
       <NaverMapWithSearch
         stores={mapStores}
         onStoreSelect={handleStoreSelect}
+        onVisibleStoresChange={onVisibleStoresChange}
         center={{ lat: 37.5665, lng: 126.9780 }}
         zoom={10}
         className="w-full"
@@ -982,16 +1074,26 @@ function MapView({
               {/* 상단: 하트 + 매장명 + 가격 */}
               <div className="flex items-start justify-between">
                 <div className="flex items-center space-x-2 flex-1">
-                  <Heart className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0 hover:bg-transparent"
+                    onClick={(e) => onFavoriteToggle(selectedStore, e)}
+                  >
+                    <Heart 
+                      className={`h-4 w-4 flex-shrink-0 ${
+                        isFavorite(selectedStore.id) 
+                          ? 'fill-red-500 text-red-500' 
+                          : 'text-muted-foreground hover:text-red-500'
+                      }`} 
+                    />
+                  </Button>
                   <h3 className="font-semibold text-base">
                     {selectedStore.name}
                   </h3>
                 </div>
                 <div className="text-lg font-semibold text-blue-600 ml-2">
-                  {(
-                    selectedStore.price * 10000
-                  ).toLocaleString()}
-                  원
+                  {selectedStore.price.toLocaleString()}원
                 </div>
               </div>
 
