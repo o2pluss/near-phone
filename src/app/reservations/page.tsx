@@ -47,7 +47,7 @@ export default function ReservationsPage() {
   }
 
   const handleStoreSelect = (store: any) => {
-    router.push(`/detail/${store.id}?from=reservations`);
+    router.push(`/detail/${store.id}?from=reservation`);
   };
 
   return (

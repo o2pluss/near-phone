@@ -51,7 +51,7 @@ paths:
           schema: { type: string, enum: [번호이동, 신규가입, 기기변경] }
         - in: query
           name: conditions
-          schema: { type: string, description: "comma-separated conditions like '필수 요금제,카드 할인'" }
+          schema: { type: string, description: "comma-separated conditions like '필수요금제,카드할인'" }
         - in: query
           name: q
           schema: { type: string, description: "모델명 검색" }

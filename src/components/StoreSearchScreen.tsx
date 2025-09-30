@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -47,8 +48,10 @@ import {
 } from "lucide-react";
 import { getConditionStyle } from "../lib/conditionStyles";
 import { StoreConditionChips } from "./StoreConditionChips";
+import NaverMapWithSearch from "./NaverMapWithSearch";
 import { getPhoneModels, type PhoneModel, type DeviceModel, type DeviceModelsResponse } from "../lib/phoneModels";
-import { useStores, useStoreProducts, useDeviceModels } from "@/hooks/useApi";
+import { getCarrierLabel } from "../lib/constants/codes";
+import { useStores, useStoreSearch, useDeviceModels } from "@/hooks/useApi";
 
 interface Store {
   id: string;
@@ -84,7 +87,7 @@ interface FilterState {
 // PhoneModel interface is now imported from lib/phoneModels.ts
 
 interface StoreSearchScreenProps {
-  onStoreSelect: (store: Store) => void;
+  onStoreSelect: (store: Store, selectedProduct?: any) => void;
   onBack: () => void;
 }
 
@@ -93,6 +96,9 @@ export default function StoreSearchScreen({
   onStoreSelect,
   onBack,
 }: StoreSearchScreenProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  
   // 실제 device-models 데이터 조회
   const deviceModelsQuery = useDeviceModels({ page: 1, limit: 1000 }, { enabled: true });
   const [phoneModels, setPhoneModels] = useState<PhoneModel[]>([]);
@@ -103,6 +109,7 @@ export default function StoreSearchScreen({
   const [showModelModal, setShowModelModal] = useState(false);
   const [selectedStore, setSelectedStore] =
     useState<Store | null>(null);
+  // 지도 영역 필터링 기능 비활성화
   const [selectedCarrier, setSelectedCarrier] =
     useState<string>("kt");
   const [selectedModel, setSelectedModel] =
@@ -118,7 +125,7 @@ export default function StoreSearchScreen({
   const [tempFilters, setTempFilters] = useState<FilterState>({
     signupType: [],
     conditions: [],
-    priceRange: [0, 200],
+    priceRange: [0, 300],
     storage: ["256gb"],
   });
   
@@ -126,9 +133,27 @@ export default function StoreSearchScreen({
   const [appliedFilters, setAppliedFilters] = useState<FilterState>({
     signupType: [],
     conditions: [],
-    priceRange: [0, 200],
+    priceRange: [0, 300],
     storage: ["256gb"],
   });
+  const [storeInfoMap, setStoreInfoMap] = useState<Map<string, any>>(new Map());
+
+  // 오늘 요일 기준 영업시간을 가져오는 함수
+  const getTodayHours = (businessHours: any) => {
+    if (!businessHours) return "09:00 - 21:00";
+    
+    const today = new Date();
+    const dayOfWeek = today.getDay(); // 0: 일요일, 1: 월요일, ..., 6: 토요일
+    
+    switch (dayOfWeek) {
+      case 0: // 일요일
+        return businessHours.sunday || businessHours.weekday || "09:00 - 21:00";
+      case 6: // 토요일
+        return businessHours.saturday || businessHours.weekday || "09:00 - 21:00";
+      default: // 월요일~금요일
+        return businessHours.weekday || "09:00 - 21:00";
+    }
+  };
 
   // 가격 범위는 만원 단위로 가정 → 원화로 변환
   const minPriceWon = Math.max(0, (appliedFilters.priceRange?.[0] ?? 0)) * 10000;
@@ -137,7 +162,7 @@ export default function StoreSearchScreen({
   // 필터 조건 확인 (모든 필터를 합쳐서 확인)
   const hasProductFilters = selectedCarrier !== "kt" || 
     (appliedFilters.priceRange?.[0] ?? 0) > 0 || 
-    (appliedFilters.priceRange?.[1] ?? 0) < 200 ||
+    (appliedFilters.priceRange?.[1] ?? 0) < 300 ||
     selectedStorage !== "256gb" ||
     (appliedFilters.signupType?.length ?? 0) > 0 ||
     (appliedFilters.conditions?.length ?? 0) > 0 ||
@@ -162,7 +187,77 @@ export default function StoreSearchScreen({
   
   // 상품 검색만 사용하고, 매장 검색은 비활성화
   const storesQuery = useStores(storeSearchParams, { enabled: false }); // 매장 검색 비활성화
-  const storeProductsQuery = useStoreProducts(productFilterParams, { enabled: hasProductFilters });
+  const storeSearchQuery = useStoreSearch(productFilterParams, { enabled: hasProductFilters });
+
+  // URL 쿼리 파라미터에서 초기 상태 복원 (컴포넌트 마운트 시에만)
+  useEffect(() => {
+    const carrier = searchParams.get('carrier');
+    const model = searchParams.get('model');
+    const storage = searchParams.get('storage');
+    const priceMin = searchParams.get('priceMin');
+    const priceMax = searchParams.get('priceMax');
+    const signupType = searchParams.get('signupType');
+    const conditions = searchParams.get('conditions');
+    
+    if (carrier) setSelectedCarrier(carrier);
+    if (model) setSelectedModel(model);
+    if (storage) setSelectedStorage(storage);
+    
+    if (priceMin || priceMax) {
+      const priceRange = [
+        priceMin ? parseInt(priceMin) / 10000 : 0,
+        priceMax ? parseInt(priceMax) / 10000 : 300
+      ];
+      setAppliedFilters(prev => ({ ...prev, priceRange }));
+    }
+    
+    if (signupType) {
+      const signupTypes = signupType.split(',').map(s => s.trim()).filter(Boolean);
+      setAppliedFilters(prev => ({ ...prev, signupType: signupTypes }));
+    }
+    
+    if (conditions) {
+      const conditionList = conditions.split(',').map(c => c.trim()).filter(Boolean);
+      setAppliedFilters(prev => ({ ...prev, conditions: conditionList }));
+    }
+  }, []); // 빈 의존성 배열로 컴포넌트 마운트 시에만 실행
+
+  // 검색 상태가 변경될 때마다 URL 업데이트 (URL 복원 후에만)
+  useEffect(() => {
+    // 컴포넌트가 마운트된 후에만 URL 업데이트
+    const timeoutId = setTimeout(() => {
+      const params = new URLSearchParams();
+      
+      if (selectedCarrier !== "kt") params.set('carrier', selectedCarrier);
+      if (selectedModel) params.set('model', selectedModel);
+      if (selectedStorage !== "256gb") params.set('storage', selectedStorage);
+      
+      if (appliedFilters.priceRange) {
+        const [min, max] = appliedFilters.priceRange;
+        if (min > 0) params.set('priceMin', String(min * 10000));
+        if (max < 300) params.set('priceMax', String(max * 10000));
+      }
+      
+      if (appliedFilters.signupType?.length) {
+        params.set('signupType', appliedFilters.signupType.join(','));
+      }
+      
+      if (appliedFilters.conditions?.length) {
+        params.set('conditions', appliedFilters.conditions.join(','));
+      }
+      
+      const queryString = params.toString();
+      const newUrl = queryString ? `/search?${queryString}` : '/search';
+      
+      // 현재 URL과 비교하여 변경된 경우에만 업데이트
+      const currentUrl = `/search${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
+      if (currentUrl !== newUrl) {
+        router.replace(newUrl, { scroll: false });
+      }
+    }, 100); // 약간의 지연을 두어 상태 복원 후 실행
+
+    return () => clearTimeout(timeoutId);
+  }, [selectedCarrier, selectedModel, selectedStorage, appliedFilters, router, searchParams]);
 
   // device-models 데이터를 PhoneModel 형태로 변환
   useEffect(() => {
@@ -200,7 +295,7 @@ export default function StoreSearchScreen({
     const defaultFilters = {
       signupType: [],
       conditions: [],
-      priceRange: [0, 200],
+      priceRange: [0, 300],
       storage: ["256gb"],
     };
     setTempFilters(defaultFilters);
@@ -214,9 +309,9 @@ export default function StoreSearchScreen({
     "기기변경",
   ];
   const conditionOptions = [
-    "필수 요금제",
-    "카드 할인",
-    "결합 할인",
+    "필수요금제",
+    "카드할인",
+    "결합할인",
     "부가서비스",
   ];
 
@@ -253,7 +348,26 @@ export default function StoreSearchScreen({
     if (viewMode === "map") {
       setSelectedStore(store);
     } else if (store) {
-      onStoreSelect(store);
+      // 선택된 상품 정보 찾기
+      let productInfo = null;
+      if (hasProductFilters && storeSearchQuery.data) {
+        const allProducts = storeSearchQuery.data.pages.flatMap((page: any) => page.items || []);
+        productInfo = allProducts.find((product: any) => product.store_id === store.id);
+      }
+      
+      // 상품 정보가 없으면 첫 번째 상품 사용
+      if (!productInfo && storeSearchQuery.data) {
+        const allProducts = storeSearchQuery.data.pages.flatMap((page: any) => page.items || []);
+        productInfo = allProducts.find((product: any) => product.store_id === store.id);
+      }
+      
+      // 상품 정보를 store 객체에 추가하여 전달
+      const storeWithProduct = {
+        ...store,
+        selectedProduct: productInfo
+      };
+      
+      onStoreSelect(storeWithProduct);
     }
   };
 
@@ -271,15 +385,38 @@ export default function StoreSearchScreen({
     (model) => model.brand === modelTab,
   );
 
+  // 매장 정보를 가져오는 useEffect (이제 store-search API에서 직접 가져옴)
+  useEffect(() => {
+    if (hasProductFilters && storeSearchQuery.data && storeSearchQuery.data.pages) {
+      const items = storeSearchQuery.data.pages.flatMap((p: any) => {
+        if (p && Array.isArray(p.items)) {
+          return p.items;
+        } else if (Array.isArray(p)) {
+          return p;
+        }
+        return [];
+      }) as any[];
+      
+      if (items.length > 0) {
+        // store-search API에서 이미 매장 정보를 포함하고 있으므로 별도 API 호출 불필요
+        const newStoreMap = new Map();
+        items.forEach((item: any) => {
+          if (item && item.store_id && item.stores) {
+            newStoreMap.set(item.store_id, item.stores);
+          }
+        });
+        setStoreInfoMap(newStoreMap);
+      }
+    }
+  }, [hasProductFilters, storeSearchQuery.data]);
+
   // 정렬된 매장 목록
   const sortedStores = useMemo(() => {
-    if (hasProductFilters && storeProductsQuery.data && storeProductsQuery.data.pages) {
+    if (hasProductFilters && storeSearchQuery.data && storeSearchQuery.data.pages) {
       try {
-        const items = storeProductsQuery.data.pages.flatMap((p: any) => {
+        const items = storeSearchQuery.data.pages.flatMap((p: any) => {
           // pages 배열의 각 항목이 올바른 구조인지 확인
-          if (p && Array.isArray(p.products)) {
-            return p.products;
-          } else if (p && Array.isArray(p.items)) {
+          if (p && Array.isArray(p.items)) {
             return p.items;
           } else if (Array.isArray(p)) {
             return p;
@@ -299,28 +436,32 @@ export default function StoreSearchScreen({
             byStore.set(it.store_id, it);
           }
         }
-        const stores = Array.from(byStore.values()).map((sp: any) => ({
-          id: sp.store_id,
-          name: `매장 ${sp.store_id.slice(-4)}`, // 임시 매장명 (실제로는 매장 API에서 가져와야 함)
-          address: "주소 정보 없음",
-          distance: 0.5,
-          phone: "-",
-          rating: 4.5, // 기본 평점
-          reviewCount: 0,
-          model: sp.products?.model ?? sp.model ?? "",
-          price: Math.floor((sp.price ?? 0) / 10000), // 원화를 만원 단위로 변환
-          originalPrice: Math.floor((sp.discount_price ?? sp.price ?? 0) / 10000),
-          conditions: sp.conditions ? String(sp.conditions).replace(/[{}"]/g, '').split(',').map((c: string) => c.trim()) : [],
-          hours: "09:00 - 21:00", // 기본 영업시간
-          position: { x: Math.random() * 100, y: Math.random() * 100 }, // 랜덤 위치
-          image: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=300&h=200&fit=crop",
-          productCarrier: sp.carrier ?? selectedCarrier,
-          businessHours: {
-            weekday: "09:00 - 21:00",
-            saturday: "10:00 - 20:00",
-            sunday: "10:00 - 19:00"
-          }
-        }));
+        
+        const stores = Array.from(byStore.values()).map((sp: any) => {
+          const storeInfo = storeInfoMap.get(sp.store_id);
+          return {
+            id: sp.store_id,
+            name: storeInfo?.name || `매장 ${sp.store_id.slice(-4)}`, // 실제 매장명 또는 임시 매장명
+            address: storeInfo?.address || "주소 정보 없음",
+            distance: 0.5, // 거리는 계산 로직이 필요
+            phone: storeInfo?.phone || "-",
+            rating: storeInfo?.rating || 0,
+            reviewCount: storeInfo?.review_count || 0,
+            model: sp.device_models?.device_name ?? sp.device_models?.model_name ?? "",
+            price: Math.floor((sp.price ?? 0) / 10000), // 원화를 만원 단위로 변환
+            originalPrice: Math.floor((sp.price ?? 0) / 10000),
+            conditions: sp.conditions || [],
+            hours: getTodayHours(storeInfo?.hours), // 오늘 요일 기준 영업시간
+            position: { x: Math.random() * 100, y: Math.random() * 100 }, // 랜덤 위치
+            image: sp.device_models?.image_url || "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=300&h=200&fit=crop",
+            productCarrier: sp.carrier ?? selectedCarrier,
+            businessHours: storeInfo?.hours || {
+              weekday: "-",
+              saturday: "-",
+              sunday: "-"
+            }
+          };
+        });
         return stores;
       } catch (error) {
         console.error('매장 상품 데이터 변환 중 오류 발생:', error);
@@ -380,7 +521,7 @@ export default function StoreSearchScreen({
     }
 
     return stores;
-  }, [sortBy, hasProductFilters, storeProductsQuery.data, storesQuery.data, selectedCarrier]);
+  }, [sortBy, hasProductFilters, storeSearchQuery.data, storesQuery.data, selectedCarrier, storeInfoMap]);
 
   // 활성화된 필터가 있는지 확인 (적용된 필터 기준)
   const hasActiveFilters = useMemo(() => {
@@ -389,7 +530,7 @@ export default function StoreSearchScreen({
       appliedFilters.conditions.length > 0 ||
       appliedFilters.storage.length > 0 ||
       appliedFilters.priceRange[0] !== 0 ||
-      appliedFilters.priceRange[1] !== 200
+      appliedFilters.priceRange[1] !== 300
     );
   }, [appliedFilters]);
 
@@ -490,14 +631,14 @@ export default function StoreSearchScreen({
           />
         )}
         {/* Load more (무한 스크롤 대용 버튼) */}
-        {viewMode === "list" && hasProductFilters && (
+        {viewMode === "list" && hasProductFilters && storeSearchQuery.hasNextPage && (
           <div className="flex justify-center py-4">
             <Button
               variant="outline"
-              onClick={() => storeProductsQuery.fetchNextPage()}
-              disabled={!storeProductsQuery.hasNextPage || storeProductsQuery.isFetchingNextPage}
+              onClick={() => storeSearchQuery.fetchNextPage()}
+              disabled={storeSearchQuery.isFetchingNextPage}
             >
-              {storeProductsQuery.isFetchingNextPage ? '불러오는 중…' : (storeProductsQuery.hasNextPage ? '더 보기' : '모두 읽음')}
+              {storeSearchQuery.isFetchingNextPage ? '불러오는 중…' : '더 보기'}
             </Button>
           </div>
         )}
@@ -510,7 +651,7 @@ export default function StoreSearchScreen({
             onClick={() =>
               setViewMode(viewMode === "list" ? "map" : "list")
             }
-            className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-full shadow-lg flex items-center space-x-2"
+            className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-full shadow-lg flex items-center"
           >
             {viewMode === "list" ? (
               <>
@@ -597,7 +738,7 @@ export default function StoreSearchScreen({
                       priceRange: value,
                     }))
                   }
-                  max={200}
+                  max={300}
                   min={0}
                   step={10}
                   className="w-full"
@@ -729,9 +870,12 @@ function ListView({
       <div className="flex-1 overflow-y-auto">
         {stores.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center p-8">
-            <h3 className="text-lg text-gray-700">
-              모델을 선택하거나 필터를 적용해보세요.
+            <h3 className="text-sm text-muted-foreground mb-2">
+              앗, 찾으시는 결과가 없어요 😥
             </h3>
+            <p className="text-xs text-muted-foreground">
+              다른 모델을 검색하시거나 필터를 변경해보세요.
+            </p>
           </div>
         ) : (
           stores.map((store) => (
@@ -793,92 +937,42 @@ function MapView({
     className: string;
   };
 }) {
-  const handleCurrentLocation = () => {
-    // 현재 위치 가져오기 로직
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords;
-          console.log("현재 위치:", latitude, longitude);
-          // 지도를 현재 위치로 이동하는 로직을 여기에 추가
-        },
-        (error) => {
-          console.error(
-            "위치 정보를 가져올 수 없습니다:",
-            error,
-          );
-          alert(
-            "위치 정보를 가져올 수 없습니다. 위치 권한을 확인해주세요.",
-          );
-        },
-      );
-    } else {
-      alert(
-        "이 브라우저에서는 위치 서비스를 지원하지 않습니다.",
-      );
-    }
-  };
+  // Store 데이터를 네이버 지도 형식으로 변환
+  const mapStores = stores
+    .filter(store => store.position) // position이 있는 매장만 필터링
+    .map(store => ({
+      id: store.id,
+      name: store.name,
+      address: store.address,
+      latitude: 37.5665 + (store.position.y - 50) * 0.01, // 대략적인 좌표 변환
+      longitude: 126.9780 + (store.position.x - 50) * 0.01,
+      phone: store.phone,
+      rating: store.rating,
+      reviewCount: store.reviewCount || 0,
+      distance: store.distance,
+      model: store.model,
+      price: store.price,
+      conditions: store.conditions,
+      hours: store.hours
+    }));
 
-  const handleMapClick = (e: React.MouseEvent) => {
-    // 매장 핀이 아닌 지도 배경을 클릭했을 때만 카드 닫기
-    if (e.target === e.currentTarget) {
-      onStoreClick(null as any);
+  const handleStoreSelect = (store: any) => {
+    // 네이버 지도에서 선택된 매장을 원래 형식으로 변환
+    const originalStore = stores.find(s => s.id === store.id);
+    if (originalStore) {
+      onStoreClick(originalStore);
     }
   };
 
   return (
-    <div className="h-full relative">
-      {/* Mock Map */}
-      <div
-        className="h-full bg-gradient-to-br from-blue-100 to-green-100 relative cursor-pointer"
-        onClick={handleMapClick}
-      >
-        {/* Mock Streets */}
-        <div className="absolute top-1/4 left-0 right-0 h-px bg-gray-300 pointer-events-none"></div>
-        <div className="absolute top-1/2 left-0 right-0 h-px bg-gray-300 pointer-events-none"></div>
-        <div className="absolute top-3/4 left-0 right-0 h-px bg-gray-300 pointer-events-none"></div>
-        <div className="absolute top-0 bottom-0 left-1/4 w-px bg-gray-300 pointer-events-none"></div>
-        <div className="absolute top-0 bottom-0 left-1/2 w-px bg-gray-300 pointer-events-none"></div>
-        <div className="absolute top-0 bottom-0 left-3/4 w-px bg-gray-300 pointer-events-none"></div>
-
-        {/* Store Pins */}
-        {stores.map((store) => (
-          <div
-            key={store.id}
-            className="absolute transform -translate-x-1/2 -translate-y-full cursor-pointer z-10"
-            style={{
-              left: `${store.position.x}%`,
-              top: `${store.position.y}%`,
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              onStoreClick(store);
-            }}
-          >
-            <div
-              className={`
-              bg-white border-2 px-2 py-1 rounded-lg shadow-lg text-sm font-semibold
-              ${selectedStore?.id === store.id ? "border-blue-500 bg-blue-50" : "border-gray-300"}
-            `}
-            >
-              {store.price}만
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Current Location Button */}
-      <div className="absolute top-4 right-4 z-20">
-        <Button
-          size="sm"
-          variant="outline"
-          className="w-10 h-10 p-0 bg-white shadow-lg"
-          onClick={handleCurrentLocation}
-          title="현재 위치"
-        >
-          <Crosshair className="h-4 w-4" />
-        </Button>
-      </div>
+    <div className="h-full relative" style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <NaverMapWithSearch
+        stores={mapStores}
+        onStoreSelect={handleStoreSelect}
+        center={{ lat: 37.5665, lng: 126.9780 }}
+        zoom={10}
+        className="w-full"
+      />
 
       {/* Selected Store Info */}
       {selectedStore && (

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Card,
   CardContent,
@@ -35,14 +35,21 @@ import { getConditionStyle } from "../lib/conditionStyles";
 import ReviewList from "./ReviewList";
 import ReservationModal from "./reservation/ReservationModal";
 import ReservationSuccessDialog from "./reservation/ReservationSuccessDialog";
-import type { ReviewWithUser, ReviewStats } from "../types/review";
+import type { ReviewStats } from "../types/review";
 import { formatPrice } from "../utils/formatPrice";
-import { useReviews, useStoreProducts, useStore } from "@/hooks/useApi";
+import { useReviews, useStoreSearch, useStore } from "@/hooks/useApi";
+import { MANUFACTURER_LABELS, getCarrierLabel } from "@/lib/constants/codes";
+
+// 제조사명을 한글로 변환하는 함수
+const getManufacturerDisplayName = (manufacturer: string): string => {
+  return MANUFACTURER_LABELS[manufacturer as keyof typeof MANUFACTURER_LABELS] || manufacturer;
+};
 
 interface Store {
   id: string;
   name: string;
   address: string;
+  address_detail: string;
   distance: number;
   phone: string;
   rating: number;
@@ -75,6 +82,7 @@ interface StoreDetailProps {
   hideConditionsAndBooking?: boolean;
   user?: any;
   profile?: any;
+  productId?: string | null;
 }
 
 
@@ -85,38 +93,85 @@ export default function StoreDetail({
   hideConditionsAndBooking,
   user,
   profile,
+  productId,
 }: StoreDetailProps) {
   const queryClient = useQueryClient();
-  const productsQuery = useStoreProducts({ storeId }, { enabled: !!storeId });
+  const productsQuery = useStoreSearch({ storeId }, { enabled: !!storeId });
   const reviewsQuery = useReviews({ storeId }, { enabled: !!storeId });
   const storeQuery = useStore(storeId, { enabled: !!storeId });
   
-  // 첫 번째 상품 정보 (가격, 모델 등)
-  const firstProduct = productsQuery.data?.pages[0]?.items?.[0];
+  // 선택된 상품 정보 찾기
+  const selectedProduct = useMemo(() => {
+    if (!productId || !productsQuery.data) return null;
+    
+    const allProducts = productsQuery.data.pages.flatMap((page: any) => page.items || []);
+    return allProducts.find((product: any) => product.id === productId) || null;
+  }, [productId, productsQuery.data]);
+
+  // 선택된 상품 정보 (항상 존재)
+  const productInfo = selectedProduct || {
+    id: '',
+    store_id: '',
+    device_model_id: '',
+    carrier: 'KT',
+    storage: '256GB',
+    price: 0,
+    conditions: [],
+    is_active: true,
+    created_at: '',
+    updated_at: '',
+    device_models: {
+      id: '',
+      manufacturer: '',
+      device_name: '상품 정보 없음',
+      model_name: '',
+      image_url: ''
+    },
+    product_tables: {
+      id: '',
+      name: '',
+      exposure_start_date: '',
+      exposure_end_date: '',
+      is_active: true
+    }
+  };
+
+  console.log('StoreDetail - productId:', productId);
+  console.log('StoreDetail - selectedProduct:', selectedProduct);
+  console.log('StoreDetail - productInfo:', productInfo);
   
   // 실제 매장 데이터와 상품 데이터를 조합
   const store: Store = {
     id: storeId,
     name: storeQuery.data?.name ?? "매장 정보 없음",
-    address: storeQuery.data?.address ?? "주소 정보 없음",
+    address: storeQuery.data?.address ?? "",
+    address_detail: storeQuery.data?.address_detail ?? "",
     phone: storeQuery.data?.phone ?? "-",
     rating: storeQuery.data?.rating ?? 0,
     reviewCount: storeQuery.data?.review_count ?? 0,
-    model: firstProduct?.products?.name ?? "상품 정보 없음",
-    price: firstProduct?.price ?? 0,
-    originalPrice: firstProduct?.discount_price ?? firstProduct?.price ?? 0,
-    conditions: firstProduct?.conditions ? 
-      String(firstProduct.conditions).replace(/[{}"]/g, '').split(',').map((c: string) => c.trim()) : 
-      [],
-    hours: "09:00 - 21:00", // 기본 영업시간
+    model: productInfo.device_models?.device_name ?? productInfo.device_models?.model_name ?? "상품 정보 없음",
+    price: productInfo.price ?? 0,
+    originalPrice: productInfo.price ?? 0,
+    conditions: productInfo.conditions || [],
+    hours: storeQuery.data?.hours?.weekday ?? "09:00 - 21:00", // 서버에서 가져온 영업시간
     description: storeQuery.data?.description ?? "매장 설명이 없습니다.",
-    businessHours: {
+    businessHours: storeQuery.data?.hours ? {
+      weekday: storeQuery.data.hours.weekday ?? "09:00 - 21:00",
+      saturday: storeQuery.data.hours.saturday ?? "10:00 - 20:00",
+      sunday: storeQuery.data.hours.sunday ?? "10:00 - 19:00"
+    } : {
       weekday: "09:00 - 21:00",
       saturday: "10:00 - 20:00",
       sunday: "10:00 - 19:00"
     },
-    productCarrier: firstProduct?.carrier ?? "kt",
-    images: [
+    productCarrier: (() => {
+      const carrier = productInfo.carrier?.toLowerCase();
+      if (carrier === 'kt') return 'kt';
+      if (carrier === 'skt') return 'skt';
+      if (carrier === 'lgu' || carrier === 'lg u+') return 'lgu';
+      return 'kt';
+    })(),
+    images: storeQuery.data?.images && storeQuery.data.images.length > 0 ? storeQuery.data.images : [
       "https://images.unsplash.com/photo-1723133741318-0f5c5afcf19e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2JpbGUlMjBwaG9uZSUyMHN0b3JlJTIwaW50ZXJpb3J8ZW58MXx8fHwxNzU4NTEzMjgwfDA&ixlib=rb-4.1.0&q=80&w=1080",
       "https://images.unsplash.com/photo-1584658645175-90788b3347b3?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwaG9uZSUyMHN0b3JlJTIwZGlzcGxheXxlbnwxfHx8fDE3NTg1MTMyODV8MA&ixlib=rb-4.1.0&q=80&w=1080",
       "https://images.unsplash.com/photo-1703165552745-37e85f0273cd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxlbGVjdHJvbmljcyUyMHJldGFpbCUyMHN0b3JlfGVufDF8fHx8MTc1ODUxMzI4OXww&ixlib=rb-4.1.0&q=80&w=1080"
@@ -131,23 +186,8 @@ export default function StoreDetail({
   const [showReservationSuccess, setShowReservationSuccess] = useState(false);
   
   // 리뷰 상태 관리
-  const [userReview, setUserReview] = useState<ReviewWithUser | null>(null);
-  const [showUserReview, setShowUserReview] = useState(false);
 
-  // 현재 사용자 ID (실제로는 auth store에서 가져와야 함)
-  const currentUserId = "user-1";
   const router = useRouter();
-  
-  // 현재 사용자가 작성한 리뷰 찾기 (API 데이터만 사용)
-  React.useEffect(() => {
-    const apiReviews = reviewsQuery.data?.pages.flatMap((p: any) => p.items) as ReviewWithUser[] | undefined;
-    const existingReview = apiReviews?.find(review => (review as any).userId === currentUserId);
-    if (existingReview) {
-      setUserReview(existingReview);
-    } else {
-      setUserReview(null);
-    }
-  }, [reviewsQuery.data, currentUserId]);
 
 
   const toggleFavorite = () => {
@@ -313,7 +353,7 @@ export default function StoreDetail({
                 <div className="font-semibold text-lg">
                   {store.name}
                 </div>
-                <div className="text-muted-foreground text-sm">
+                <div className="ml-2 text-gray-400 text-sm">
                   {store.distance}km
                 </div>
               </div>
@@ -332,8 +372,7 @@ export default function StoreDetail({
 
           {/* Description */}
           <div className="text-muted-foreground">
-            {store.description ||
-              "최신 스마트폰을 합리적인 가격에 제공하는 신뢰할 수 있는 매장입니다. 전문 상담사가 고객 맞춤형 요금제를 안내해드립니다."}
+            {store.description || ""}
           </div>
 
           {/* Contact Info */}
@@ -341,7 +380,7 @@ export default function StoreDetail({
             <div className="flex items-center space-x-3">
               <div>
                 <div className="text-muted-foreground">
-                  {store.address}
+                  {store.address} {store.address_detail}
                 </div>
               </div>
             </div>
@@ -370,50 +409,37 @@ export default function StoreDetail({
             </div>
           </div>
 
-          {/* Conditions - 예약에서 온 경우 숨김 */}
+          {/* Additional Info - 예약에서 온 경우 숨김 */}
           {!hideConditionsAndBooking && (
-            <div className="border-t pt-4">
-              <h4 className="font-medium mb-2">조건</h4>
+            <div className="bg-blue-50 rounded-lg p-4 text-sm">
               <div className="space-y-2">
-                <div className="text-muted-foreground">
-                  {store.model} · {(firstProduct?.storage ?? "256gb").toUpperCase()}
-                </div>
+                 {productInfo.device_models && (
+                   <div>
+                     {getManufacturerDisplayName(productInfo.device_models.manufacturer)} · {productInfo.device_models.device_name} · {(productInfo.storage).toUpperCase()}
+                   </div>
+                 )}
                 <div className="flex flex-wrap gap-2">
                   {/* 통신사 CHIP (맨 앞에 표시) */}
-                  {store.productCarrier && (
+                  {productInfo.carrier && (
                     <Badge className="text-xs px-1.5 py-0.5 border bg-blue-50 border-blue-200 text-blue-700">
-                      {store.productCarrier.toUpperCase()}
+                      {getCarrierLabel(productInfo.carrier.toUpperCase() as any)}
                     </Badge>
                   )}
-                  {store.conditions.map((condition, index) => {
-                    const { icon: IconComponent, className } = getConditionStyle(condition);
+                  {productInfo.conditions.map((condition, index) => {
+                    const { className } = getConditionStyle(condition);
                     return (
                       <Badge
                         key={index}
                         className={`text-xs px-1.5 py-0.5 border ${className}`}
                       >
-                        <div className="flex items-center gap-0.5">
-                          {IconComponent && (
-                            <IconComponent className="h-2.5 w-2.5" />
-                          )}
-                          <span>{condition}</span>
-                        </div>
+                        {condition}
                       </Badge>
                     );
                   })}
                 </div>
-              </div>
-            </div>
-          )}
-
-          {/* Additional Info - 예약에서 온 경우 숨김 */}
-          {!hideConditionsAndBooking && (
-            <div className="bg-blue-50 rounded-lg p-4 text-sm">
-              <div className="space-y-1">
-                <div className="flex justify-between">
-                  <span>할인가</span>
+                <div className="flex justify-end">
                   <span className="font-semibold text-blue-600">
-                    {formatPrice(store.price)}
+                    {formatPrice(productInfo.price)}
                   </span>
                 </div>
               </div>
@@ -452,118 +478,20 @@ export default function StoreDetail({
         </div>
       </div>
 
-      {/* Bottom Buttons - 예약에서 온 경우 숨김 */}
+      {/* Floating Reservation Button - 예약에서 온 경우 숨김 */}
       {!hideConditionsAndBooking && (
-        <div className="sticky bottom-0 border-t p-4" style={{ backgroundColor: '#FAFAFA' }}>
-          <div className="flex space-x-3">
-            <div className="flex space-x-2">
-              <ReservationModal
-                store={store}
-                firstProduct={firstProduct}
-                isOpen={isReservationOpen}
-                onOpenChange={setIsReservationOpen}
-                onReservationSuccess={handleReservationSuccess}
-              />
-
-            {/* 리뷰 버튼 */}
-            {userReview ? (
-              <Button
-                variant="outline"
-                onClick={() => setShowUserReview(true)}
-                className="flex-1"
-              >
-                내 리뷰 보기
-              </Button>
-            ) : (
-              <Button
-                variant="outline"
-                onClick={() => {
-                  // 리뷰 작성 페이지로 이동하는 로직
-                  alert("리뷰 작성 기능은 예약 종료 후 이용 가능합니다.");
-                }}
-                className="flex-1"
-              >
-                리뷰 쓰기
-              </Button>
-            )}
-            </div>
-          </div>
+        <div className="fixed left-1/2 transform -translate-x-1/2 z-50 bottom-20">
+          <ReservationModal
+            store={store}
+            firstProduct={productInfo}
+            isOpen={isReservationOpen}
+            onOpenChange={setIsReservationOpen}
+            onReservationSuccess={handleReservationSuccess}
+          />
         </div>
       )}
 
 
-      {/* User Review Dialog */}
-      <Dialog open={showUserReview} onOpenChange={setShowUserReview}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>내가 작성한 리뷰</DialogTitle>
-            <DialogDescription>
-              {store.name}에 대한 리뷰
-            </DialogDescription>
-          </DialogHeader>
-
-          {userReview && (
-            <div className="space-y-4">
-              {/* 별점 */}
-              <div className="flex items-center space-x-2">
-                <span className="text-sm text-muted-foreground">평점:</span>
-                <div className="flex items-center space-x-1">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <Star
-                      key={star}
-                      className={`h-4 w-4 ${
-                        star <= userReview.rating
-                          ? "fill-yellow-400 text-yellow-400"
-                          : "text-gray-300"
-                      }`}
-                    />
-                  ))}
-                  <span className="text-sm font-medium ml-1">
-                    {userReview.rating}.0
-                  </span>
-                </div>
-              </div>
-
-              {/* 리뷰 내용 */}
-              <div className="space-y-2">
-                <span className="text-sm text-muted-foreground">리뷰 내용:</span>
-                <p className="text-sm border rounded-lg p-3 bg-gray-50">
-                  {userReview.content}
-                </p>
-              </div>
-
-              {/* 작성일 */}
-              <div className="flex items-center space-x-2 text-xs text-muted-foreground">
-                <span>작성일:</span>
-                <span>
-                  {new Date(userReview.createdAt).toLocaleDateString('ko-KR', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric'
-                  })}
-                </span>
-              </div>
-            </div>
-          )}
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowUserReview(false)}
-            >
-              닫기
-            </Button>
-            <Button
-              onClick={() => {
-                // 리뷰 수정 기능 추가 가능
-                alert("리뷰 수정 기능은 추후 업데이트 예정입니다.");
-              }}
-            >
-              수정하기
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* 예약 종료 다이얼로그 */}
       <ReservationSuccessDialog

@@ -1,16 +1,69 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useEffect, useState } from 'react';
 
-// Kakao Map types (simplified)
-interface KakaoMap {
-  setCenter: (position: any) => void;
-  setLevel: (level: number) => void;
-  addOverlayMapTypeId: (type: any) => void;
-  removeOverlayMapTypeId: (type: any) => void;
-}
+// Mock Kakao Maps API for development
+const mockKakaoMaps = {
+  Map: class {
+    constructor(container: HTMLElement, options: any) {
+      this.container = container;
+      this.options = options;
+      this.center = options.center;
+      this.level = options.level;
+    }
+    
+    setCenter(center: any) {
+      this.center = center;
+    }
+    
+    setLevel(level: number) {
+      this.level = level;
+    }
+  },
+  
+  LatLng: class {
+    constructor(lat: number, lng: number) {
+      this.lat = lat;
+      this.lng = lng;
+    }
+  },
+  
+  Marker: class {
+    constructor(options: any) {
+      this.position = options.position;
+      this.map = options.map;
+    }
+  },
+  
+  event: {
+    addListener: (marker: any, event: string, callback: Function) => {
+      // Mock event listener
+      console.log(`Mock event listener added for ${event}`);
+    }
+  },
+  
+  services: {
+    Geocoder: class {
+      addressSearch(address: string, callback: Function) {
+        // Mock geocoding - return Seoul coordinates
+        setTimeout(() => {
+          callback([{
+            y: '37.5665',
+            x: '126.9780',
+            address_name: address
+          }], 'OK');
+        }, 100);
+      }
+    },
+    Status: {
+      OK: 'OK'
+    }
+  }
+};
 
-interface KakaoMarker {
-  setMap: (map: KakaoMap | null) => void;
-  setPosition: (position: any) => void;
+// Global type declarations
+declare global {
+  interface Window {
+    kakao: any;
+  }
 }
 
 interface KakaoLatLng {
@@ -30,116 +83,61 @@ interface Store {
 // Mock Kakao Maps API
 const mockKakaoMaps = {
   Map: class {
-    private container: HTMLElement;
-    private options: any;
-    
     constructor(container: HTMLElement, options: any) {
       this.container = container;
       this.options = options;
-      
-      // Style the container to look like a map
-      container.style.backgroundColor = '#f0f0f0';
-      container.style.background = 'linear-gradient(45deg, #e3f2fd 25%, transparent 25%), linear-gradient(-45deg, #e3f2fd 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e3f2fd 75%), linear-gradient(-45deg, transparent 75%, #e3f2fd 75%)';
-      container.style.backgroundSize = '20px 20px';
-      container.style.backgroundPosition = '0 0, 0 10px, 10px -10px, -10px 0px';
+      this.center = options.center;
+      this.level = options.level;
     }
     
-    setCenter(position: any) {
-      console.log('Map center set to:', position);
+    setCenter(center: any) {
+      this.center = center;
     }
     
     setLevel(level: number) {
-      console.log('Map level set to:', level);
-    }
-    
-    addOverlayMapTypeId(type: any) {
-      console.log('Overlay added:', type);
-    }
-    
-    removeOverlayMapTypeId(type: any) {
-      console.log('Overlay removed:', type);
-    }
-  },
-  
-  Marker: class {
-    private options: any;
-    
-    constructor(options: any) {
-      this.options = options;
-    }
-    
-    setMap(map: any) {
-      if (map) {
-        console.log('Marker added to map');
-      } else {
-        console.log('Marker removed from map');
-      }
-    }
-    
-    setPosition(position: any) {
-      console.log('Marker position set to:', position);
+      this.level = level;
     }
   },
   
   LatLng: class {
-    private lat: number;
-    private lng: number;
-    
     constructor(lat: number, lng: number) {
       this.lat = lat;
       this.lng = lng;
     }
-    
-    getLat() { return this.lat; }
-    getLng() { return this.lng; }
   },
   
-  services: {
-    Geocoder: class {
-      addressSearch(address: string, callback: (result: any[], status: string) => void) {
-        // Mock geocoding
-        setTimeout(() => {
-          const mockResult = [{
-            address_name: address,
-            x: '127.027583',
-            y: '37.497928'
-          }];
-          callback(mockResult, 'OK');
-        }, 500);
-      }
-    },
-    
-    Status: {
-      OK: 'OK',
-      ZERO_RESULT: 'ZERO_RESULT',
-      ERROR: 'ERROR'
+  Marker: class {
+    constructor(options: any) {
+      this.position = options.position;
+      this.map = options.map;
     }
   },
   
   event: {
-    addListener: (target: any, type: string, handler: Function) => {
-      console.log(`Event listener added: ${type}`);
-      // Mock event handling
-      if (type === 'click') {
-        // Simulate click after a delay
+    addListener: (marker: any, event: string, callback: Function) => {
+      // Mock event listener
+      console.log(`Mock event listener added for ${event}`);
+    }
+  },
+  
+  services: {
+    Geocoder: class {
+      addressSearch(address: string, callback: Function) {
+        // Mock geocoding - return Seoul coordinates
         setTimeout(() => {
-          handler({
-            latLng: new mockKakaoMaps.LatLng(37.497928, 127.027583)
-          });
-        }, 1000);
+          callback([{
+            y: '37.5665',
+            x: '126.9780',
+            address_name: address
+          }], 'OK');
+        }, 100);
       }
+    },
+    Status: {
+      OK: 'OK'
     }
   }
 };
-
-// Global kakao object mock
-declare global {
-  interface Window {
-    kakao: {
-      maps: typeof mockKakaoMaps;
-    };
-  }
-}
 
 export const useKakaoMap = (containerId: string) => {
   const mapRef = useRef<KakaoMap | null>(null);
@@ -272,14 +270,13 @@ export const useCurrentLocation = () => {
   const [loading, setLoading] = useState(false);
 
   const getCurrentLocation = () => {
-    setLoading(true);
-    setError(null);
-
     if (!navigator.geolocation) {
       setError('Geolocation is not supported by this browser.');
-      setLoading(false);
       return;
     }
+
+    setLoading(true);
+    setError(null);
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
@@ -292,17 +289,11 @@ export const useCurrentLocation = () => {
       (error) => {
         setError(error.message);
         setLoading(false);
-        
-        // Fallback to default location (강남역)
-        setLocation({
-          lat: 37.497928,
-          lng: 127.027583
-        });
       },
       {
         enableHighAccuracy: true,
-        timeout: 5000,
-        maximumAge: 0
+        timeout: 10000,
+        maximumAge: 300000
       }
     );
   };

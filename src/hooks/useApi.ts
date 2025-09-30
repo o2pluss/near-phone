@@ -90,6 +90,29 @@ export function useDeviceModels(
   });
 }
 
+export function useStoreSearch(
+  params?: Record<string, string | number | undefined>,
+  options?: { enabled?: boolean }
+) {
+  return useInfiniteQuery({
+    queryKey: ['store-search', params],
+    queryFn: async ({ pageParam }) => {
+      // undefined 값 필터링
+      const filteredParams = Object.fromEntries(
+        Object.entries(params || {}).filter(([_, value]) => value !== undefined && value !== null && value !== '')
+      );
+      const sp = new URLSearchParams(filteredParams);
+      if (pageParam) sp.set('cursor', String(pageParam));
+      const res = await fetch(`/api/store-search?${sp.toString()}`);
+      if (!res.ok) throw new Error('Failed to fetch store search results');
+      return res.json();
+    },
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    initialPageParam: undefined,
+    enabled: options?.enabled ?? true,
+  });
+}
+
 export function useStore(
   id: string,
   options?: { enabled?: boolean }

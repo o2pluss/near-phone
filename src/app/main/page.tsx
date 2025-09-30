@@ -9,7 +9,7 @@ export default function MainPage() {
   const { user, profile } = useAuth();
 
   const handleSearch = () => {
-    router.push('/stores');
+    router.push('/search');
   };
 
   const handleReviews = () => {

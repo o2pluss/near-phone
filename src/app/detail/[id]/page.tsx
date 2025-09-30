@@ -11,13 +11,23 @@ export default function DetailPage() {
   const { user, profile } = useAuth();
 
   const storeId = params.id as string;
+  const productId = searchParams.get('productId');
   const fromReservation = searchParams.get('from') === 'reservation';
+  const fromSearch = searchParams.get('from') === 'search';
 
   const handleBack = () => {
     if (fromReservation && user && profile) {
       router.push('/reservations');
+    } else if (fromSearch) {
+      // 검색 상태를 유지하면서 매장 찾기 페이지로 이동
+      const currentParams = new URLSearchParams(searchParams.toString());
+      currentParams.delete('productId'); // productId는 제거
+      currentParams.delete('from'); // from 파라미터는 제거
+      const queryString = currentParams.toString();
+      const url = queryString ? `/search?${queryString}` : '/search';
+      router.push(url);
     } else {
-      router.push('/stores');
+      router.push('/main'); // 기본적으로 메인 페이지로 이동
     }
   };
 
@@ -44,6 +54,7 @@ export default function DetailPage() {
       hideConditionsAndBooking={fromReservation}
       user={user}
       profile={profile}
+      productId={productId}
     />
   );
 }

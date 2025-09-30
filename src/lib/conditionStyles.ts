@@ -30,7 +30,6 @@ export const getConditionStyle = (condition: string): ConditionStyle => {
         className: 'bg-gray-100 text-gray-700',
       };
     case '카드할인':
-    case '카드할':
       return {
         icon: CreditCard,
         className: 'bg-teal-50 text-teal-700',
@@ -40,12 +39,7 @@ export const getConditionStyle = (condition: string): ConditionStyle => {
         icon: Link,
         className: 'bg-amber-50 text-amber-700',
       };
-    case '당일개통':
-      return {
-        icon: Clock,
-        className: 'bg-rose-50 text-rose-700',
-      };
-    case '필수 요금제':
+    case '필수요금제':
       return {
         icon: Shield,
         className: 'bg-violet-50 text-violet-700',

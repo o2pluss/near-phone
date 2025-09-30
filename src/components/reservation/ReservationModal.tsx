@@ -25,8 +25,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
-import { User, Phone } from "lucide-react";
+import { User, Phone, Calendar } from "lucide-react";
 import { formatPrice } from "../../utils/formatPrice";
+import { formatMobileNumber, removeMobileNumberFormat } from "../../utils/formatMobileNumber";
 
 interface StoreInfo {
   id: string;
@@ -222,7 +223,7 @@ export default function ReservationModal({
           reservation_date: data.date,
           reservation_time: data.time,
           customer_name: data.name,
-          customer_phone: data.phone,
+          customer_phone: removeMobileNumberFormat(data.phone),
           memo: '',
           product_snapshot: {
             id: firstProduct?.products?.id || "product-1",
@@ -273,8 +274,8 @@ export default function ReservationModal({
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
-        <Button className="flex-1 bg-green-600 hover:bg-green-700">
-          예약하기
+        <Button className="bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-full shadow-lg flex items-center space-x-2">
+          <span>예약하기</span>
         </Button>
       </DialogTrigger>
 
@@ -404,16 +405,28 @@ export default function ReservationModal({
           <div className="space-y-2">
             <Label htmlFor="phone">연락처</Label>
             <div className="relative">
-              <Input
-                id="phone"
-                placeholder="연락처"
-                {...register("phone", {
+              <Controller
+                name="phone"
+                control={control}
+                rules={{
                   required: "연락처를 입력해주세요",
                   pattern: {
                     value: /^010-\d{4}-\d{4}$/,
                     message: "올바른 연락처 형식을 입력해주세요 (010-1234-5678)"
                   }
-                })}
+                }}
+                render={({ field }) => (
+                  <Input
+                    id="phone"
+                    placeholder="010-1234-5678"
+                    maxLength={13}
+                    value={field.value}
+                    onChange={(e) => {
+                      const formatted = formatMobileNumber(e.target.value);
+                      field.onChange(formatted);
+                    }}
+                  />
+                )}
               />
             </div>
             {errors.phone && (

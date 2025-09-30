@@ -98,6 +98,8 @@ export default function ProductTableManagement() {
     loadProductTables();
   }, [currentPage]);
 
+  // 검색어나 필터가 변경될 때는 자동 조회하지 않음 (검색 버튼 클릭 시에만 조회)
+
   // 서버에서 이미 필터링되고 페이지네이션된 데이터를 받으므로 그대로 사용
   const paginatedTables = productTables;
 

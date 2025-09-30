@@ -244,7 +244,7 @@ select
   END as carrier,
   '256gb' as storage,
   '신규가입' as signup_type,
-  '필수 요금제,카드 할인' as conditions
+  '필수요금제,카드할인' as conditions
 from public.stores s
 cross join public.products p;
 

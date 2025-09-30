@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { getCurrentUser } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
@@ -98,6 +98,22 @@ interface ProductTableData {
   };
 }
 
+interface CellPosition {
+  modelId: string;
+  carrier: string;
+  condition: string;
+}
+
+interface SelectionRange {
+  start: CellPosition;
+  end: CellPosition;
+}
+
+interface ClipboardData {
+  data: ProductTableData;
+  range: SelectionRange;
+}
+
 interface ProductTableEditorProps {
   onSave: (products: any[]) => void;
   onCancel: () => void;
@@ -150,6 +166,295 @@ export default function ProductTableEditor({
   const [tableName, setTableName] = useState<string>('');
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState<boolean>(true);
+  
+  // Excel 기능을 위한 상태들
+  const [selectedCells, setSelectedCells] = useState<Set<string>>(new Set());
+  const [selectionRange, setSelectionRange] = useState<SelectionRange | null>(null);
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+  const [dragStartCell, setDragStartCell] = useState<CellPosition | null>(null);
+  const [clipboardData, setClipboardData] = useState<ClipboardData | null>(null);
+  const [focusedCell, setFocusedCell] = useState<CellPosition | null>(null);
+  const [isSelecting, setIsSelecting] = useState<boolean>(false);
+  
+  // refs
+  const tableRef = useRef<HTMLTableElement>(null);
+  const cellRefs = useRef<Map<string, HTMLTableCellElement>>(new Map());
+
+  // Excel 기능 유틸리티 함수들
+  const getCellKey = (modelId: string, carrier: string, condition: string) => {
+    return `${modelId}-${carrier}-${condition}`;
+  };
+
+  const parseCellKey = (cellKey: string): CellPosition => {
+    const parts = cellKey.split('-');
+    // modelId는 복사본 ID를 포함할 수 있으므로 더 정확하게 파싱
+    if (parts.length >= 3) {
+      const condition = parts[parts.length - 1];
+      const carrier = parts[parts.length - 2];
+      const modelId = parts.slice(0, -2).join('-');
+      return { modelId, carrier, condition };
+    }
+    return { modelId: parts[0] || '', carrier: parts[1] || '', condition: parts[2] || '' };
+  };
+
+  const getCellPosition = (modelId: string, carrier: string, condition: string): { row: number; col: number } => {
+    const modelIndex = allModels.findIndex(m => m.id === modelId);
+    const carrierIndex = CARRIERS.indexOf(carrier);
+    const conditionIndex = CONDITIONS.indexOf(condition);
+    return {
+      row: modelIndex,
+      col: carrierIndex * 2 + conditionIndex + 2 // +2 for checkbox and model info columns
+    };
+  };
+
+  const getCellFromPosition = (row: number, col: number): CellPosition | null => {
+    if (row < 0 || row >= allModels.length) return null;
+    if (col < 2) return null; // Skip checkbox and model info columns
+    
+    const model = allModels[row];
+    const adjustedCol = col - 2;
+    const carrierIndex = Math.floor(adjustedCol / 2);
+    const conditionIndex = adjustedCol % 2;
+    
+    if (carrierIndex >= CARRIERS.length || conditionIndex >= CONDITIONS.length) return null;
+    
+    return {
+      modelId: model.id,
+      carrier: CARRIERS[carrierIndex],
+      condition: CONDITIONS[conditionIndex]
+    };
+  };
+
+  const isCellInRange = (cell: CellPosition, range: SelectionRange): boolean => {
+    const cellPos = getCellPosition(cell.modelId, cell.carrier, cell.condition);
+    const startPos = getCellPosition(range.start.modelId, range.start.carrier, range.start.condition);
+    const endPos = getCellPosition(range.end.modelId, range.end.carrier, range.end.condition);
+    
+    const minRow = Math.min(startPos.row, endPos.row);
+    const maxRow = Math.max(startPos.row, endPos.row);
+    const minCol = Math.min(startPos.col, endPos.col);
+    const maxCol = Math.max(startPos.col, endPos.col);
+    
+    return cellPos.row >= minRow && cellPos.row <= maxRow && 
+           cellPos.col >= minCol && cellPos.col <= maxCol;
+  };
+
+  const getRangeCells = (range: SelectionRange): CellPosition[] => {
+    const cells: CellPosition[] = [];
+    const startPos = getCellPosition(range.start.modelId, range.start.carrier, range.start.condition);
+    const endPos = getCellPosition(range.end.modelId, range.end.carrier, range.end.condition);
+    
+    const minRow = Math.min(startPos.row, endPos.row);
+    const maxRow = Math.max(startPos.row, endPos.row);
+    const minCol = Math.min(startPos.col, endPos.col);
+    const maxCol = Math.max(startPos.col, endPos.col);
+    
+    for (let row = minRow; row <= maxRow; row++) {
+      for (let col = minCol; col <= maxCol; col++) {
+        const cell = getCellFromPosition(row, col);
+        if (cell) cells.push(cell);
+      }
+    }
+    
+    return cells;
+  };
+
+  // 셀 선택 관련 함수들
+  const selectCell = (cell: CellPosition, addToSelection: boolean = false, focusInput: boolean = false) => {
+    const cellKey = getCellKey(cell.modelId, cell.carrier, cell.condition);
+    
+    if (addToSelection) {
+      setSelectedCells(prev => new Set([...prev, cellKey]));
+    } else {
+      setSelectedCells(new Set([cellKey]));
+      setSelectionRange({ start: cell, end: cell });
+    }
+    setFocusedCell(cell);
+    
+    // 입력 필드에 포커스가 필요한 경우
+    if (focusInput) {
+      setTimeout(() => {
+        const cellElement = cellRefs.current.get(cellKey);
+        if (cellElement) {
+          const inputElement = cellElement.querySelector('input');
+          if (inputElement) {
+            inputElement.focus();
+            inputElement.select(); // 텍스트 전체 선택
+          }
+        }
+      }, 0);
+    }
+  };
+
+  const selectRange = (start: CellPosition, end: CellPosition) => {
+    const range = { start, end };
+    setSelectionRange(range);
+    
+    const cells = getRangeCells(range);
+    const cellKeys = cells.map(cell => getCellKey(cell.modelId, cell.carrier, cell.condition));
+    setSelectedCells(new Set(cellKeys));
+    setFocusedCell(end);
+  };
+
+  const clearSelection = () => {
+    setSelectedCells(new Set());
+    setSelectionRange(null);
+    setFocusedCell(null);
+  };
+
+  // 드래그 관련 함수들
+  const handleCellMouseDown = (e: React.MouseEvent, cell: CellPosition) => {
+    // 입력 필드나 버튼이 아닌 경우에만 preventDefault
+    const target = e.target as HTMLElement;
+    const isInput = target.tagName.toLowerCase().includes('input');
+    const isButton = target.tagName.toLowerCase().includes('button') || target.closest('button');
+    
+    if (!isInput && !isButton) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
+    if (e.ctrlKey || e.metaKey) {
+      // Ctrl+클릭: 다중 선택
+      selectCell(cell, true);
+    } else if (e.shiftKey && focusedCell) {
+      // Shift+클릭: 범위 선택
+      selectRange(focusedCell, cell);
+    } else {
+      // 일반 클릭: 단일 선택
+      selectCell(cell);
+    }
+    
+    // 입력 필드가 아닌 경우에만 드래그 시작
+    if (!isInput && !isButton) {
+      setIsSelecting(true);
+      setDragStartCell(cell);
+    }
+  };
+
+  const handleCellMouseEnter = (cell: CellPosition) => {
+    if (isSelecting && dragStartCell) {
+      selectRange(dragStartCell, cell);
+    }
+  };
+
+  const handleCellMouseUp = () => {
+    setIsSelecting(false);
+    setDragStartCell(null);
+  };
+
+
+  // 복사/붙여넣기 함수들
+  const copySelectedCells = useCallback(() => {
+    if (selectedCells.size === 0) {
+      return;
+    }
+    
+    const copiedData: ProductTableData = {};
+    const cells = Array.from(selectedCells).map(parseCellKey);
+    
+    cells.forEach(cell => {
+      const data = tableData[cell.modelId]?.[cell.carrier]?.[cell.condition];
+      if (data) {
+        if (!copiedData[cell.modelId]) {
+          copiedData[cell.modelId] = {};
+        }
+        if (!copiedData[cell.modelId][cell.carrier]) {
+          copiedData[cell.modelId][cell.carrier] = {};
+        }
+        copiedData[cell.modelId][cell.carrier][cell.condition] = { 
+          price: data.price,
+          additionalConditions: [...data.additionalConditions]
+        };
+      }
+    });
+    
+    if (selectionRange) {
+      setClipboardData({
+        data: copiedData,
+        range: selectionRange
+      });
+    }
+  }, [selectedCells, selectionRange, tableData]);
+
+  const pasteToSelectedCells = useCallback(() => {
+    if (!clipboardData || selectedCells.size === 0) {
+      return;
+    }
+    
+    const targetCells = Array.from(selectedCells).map(parseCellKey);
+    const sourceCells = getRangeCells(clipboardData.range);
+    
+    // 복사된 영역의 크기 계산
+    const sourceStartPos = getCellPosition(clipboardData.range.start.modelId, clipboardData.range.start.carrier, clipboardData.range.start.condition);
+    const sourceEndPos = getCellPosition(clipboardData.range.end.modelId, clipboardData.range.end.carrier, clipboardData.range.end.condition);
+    
+    const sourceWidth = Math.abs(sourceEndPos.col - sourceStartPos.col) + 1;
+    const sourceHeight = Math.abs(sourceEndPos.row - sourceStartPos.row) + 1;
+    
+    // 범위 붙여넣기: 복사된 영역 크기만큼 붙여넣기
+    // 시작점은 선택된 영역의 첫 번째 셀 (드래그 시작점)
+    const startTarget = targetCells[0]; // 드래그 시작점
+    const startTargetPos = getCellPosition(startTarget.modelId, startTarget.carrier, startTarget.condition);
+    
+    // 복사된 영역의 모든 셀을 순회하면서 붙여넣기
+    for (let row = 0; row < sourceHeight; row++) {
+      for (let col = 0; col < sourceWidth; col++) {
+        const sourceRow = Math.min(sourceStartPos.row, sourceEndPos.row) + row;
+        const sourceCol = Math.min(sourceStartPos.col, sourceEndPos.col) + col;
+        const targetRow = startTargetPos.row + row;
+        const targetCol = startTargetPos.col + col;
+        
+        // 소스 셀 찾기 (복사된 데이터에서)
+        const sourceCell = getCellFromPosition(sourceRow, sourceCol);
+        
+        if (sourceCell) {
+          const sourceData = clipboardData.data[sourceCell.modelId]?.[sourceCell.carrier]?.[sourceCell.condition];
+          
+          if (sourceData) {
+            // 타겟 셀 찾기 (붙여넣기할 위치)
+            const targetCell = getCellFromPosition(targetRow, targetCol);
+            
+            if (targetCell) {
+              // 가격 설정
+              handlePriceChange(
+                targetCell.modelId,
+                targetCell.carrier,
+                targetCell.condition,
+                sourceData.price
+              );
+              
+              // 기존 추가 조건 모두 제거
+              const currentData = tableData[targetCell.modelId]?.[targetCell.carrier]?.[targetCell.condition];
+              if (currentData) {
+                currentData.additionalConditions.forEach(condition => {
+                  handleAdditionalConditionChange(
+                    targetCell.modelId,
+                    targetCell.carrier,
+                    targetCell.condition,
+                    condition,
+                    false
+                  );
+                });
+              }
+              
+              // 새로운 추가 조건 설정
+              sourceData.additionalConditions.forEach(condition => {
+                handleAdditionalConditionChange(
+                  targetCell.modelId,
+                  targetCell.carrier,
+                  targetCell.condition,
+                  condition,
+                  true
+                );
+              });
+            }
+          }
+        }
+      }
+    }
+  }, [clipboardData, selectedCells, tableData]);
+
 
   // 인증 상태 확인
   useEffect(() => {
@@ -691,7 +996,6 @@ export default function ProductTableEditor({
     allModels.push(model);
   });
   
-  
   // 복사본들을 allModels에 추가
   Object.keys(tableData || {}).forEach(modelId => {
     if (modelId.includes('-copy-')) {
@@ -715,6 +1019,208 @@ export default function ProductTableEditor({
       }
     }
   });
+
+  // 키보드 단축키 처리
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      console.log('키보드 이벤트:', e.key, 'ctrl:', e.ctrlKey, 'meta:', e.metaKey);
+      
+      // Ctrl+C: 복사
+      if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+        console.log('Ctrl+C 감지됨 - copySelectedCells 호출 시작');
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // 직접 복사 로직 실행
+        console.log('🚀 === copySelectedCells 함수 호출됨 ===');
+        console.log('selectedCells.size:', selectedCells.size);
+        console.log('selectedCells:', Array.from(selectedCells));
+        
+        if (selectedCells.size === 0) {
+          console.log('❌ 복사 실패: 선택된 셀이 없음');
+          return;
+        }
+        
+        console.log('✅ 선택된 셀이 있음 - 복사 진행');
+        
+        // 디버깅용 함수
+        const debugTableData = () => {
+          console.log('=== tableData 디버깅 ===');
+          console.log('tableData 전체:', tableData);
+          console.log('tableData 키들:', Object.keys(tableData));
+          Object.keys(tableData).forEach(modelId => {
+            console.log(`${modelId}:`, tableData[modelId]);
+            Object.keys(tableData[modelId] || {}).forEach(carrier => {
+              console.log(`  ${carrier}:`, tableData[modelId][carrier]);
+              Object.keys(tableData[modelId][carrier] || {}).forEach(condition => {
+                console.log(`    ${condition}:`, tableData[modelId][carrier][condition]);
+              });
+            });
+          });
+          console.log('=== 디버깅 끝 ===');
+        };
+        
+        debugTableData();
+        console.log('선택된 셀들:', Array.from(selectedCells));
+        
+        const copiedData: ProductTableData = {};
+        const cells = Array.from(selectedCells).map(parseCellKey);
+        
+        cells.forEach(cell => {
+          console.log(`셀 파싱 결과:`, cell);
+          console.log(`tableData에서 찾는 키: ${cell.modelId}-${cell.carrier}-${cell.condition}`);
+          console.log(`tableData[${cell.modelId}]:`, tableData[cell.modelId]);
+          console.log(`tableData[${cell.modelId}]?.[${cell.carrier}]:`, tableData[cell.modelId]?.[cell.carrier]);
+          console.log(`최종 데이터:`, tableData[cell.modelId]?.[cell.carrier]?.[cell.condition]);
+          
+          const data = tableData[cell.modelId]?.[cell.carrier]?.[cell.condition];
+          if (data) {
+            if (!copiedData[cell.modelId]) {
+              copiedData[cell.modelId] = {};
+            }
+            if (!copiedData[cell.modelId][cell.carrier]) {
+              copiedData[cell.modelId][cell.carrier] = {};
+            }
+            copiedData[cell.modelId][cell.carrier][cell.condition] = { 
+              price: data.price,
+              additionalConditions: [...data.additionalConditions]
+            };
+            console.log(`복사됨: ${cell.modelId}-${cell.carrier}-${cell.condition}`, data);
+          } else {
+            console.log(`데이터 없음: ${cell.modelId}-${cell.carrier}-${cell.condition}`);
+            console.log(`tableData의 모든 키들:`, Object.keys(tableData));
+            if (tableData[cell.modelId]) {
+              console.log(`${cell.modelId}의 모든 carrier들:`, Object.keys(tableData[cell.modelId]));
+            }
+          }
+        });
+        
+        if (selectionRange) {
+          setClipboardData({
+            data: copiedData,
+            range: selectionRange
+          });
+          console.log('최종 복사된 데이터:', copiedData);
+        }
+        
+        console.log('Ctrl+C - copySelectedCells 호출 완료');
+        return;
+      }
+      
+      // Ctrl+V: 붙여넣기
+      if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+        e.preventDefault();
+        pasteToSelectedCells();
+        return;
+      }
+      
+      // Ctrl+A: 전체 선택
+      if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+        e.preventDefault();
+        const allCells: CellPosition[] = [];
+        allModels.forEach(model => {
+          CARRIERS.forEach(carrier => {
+            CONDITIONS.forEach(condition => {
+              allCells.push({ modelId: model.id, carrier, condition });
+            });
+          });
+        });
+        
+        if (allCells.length > 0) {
+          const cellKeys = allCells.map(cell => getCellKey(cell.modelId, cell.carrier, cell.condition));
+          setSelectedCells(new Set(cellKeys));
+          setSelectionRange({ start: allCells[0], end: allCells[allCells.length - 1] });
+        }
+        return;
+      }
+      
+      // Escape: 선택 해제
+      if (e.key === 'Escape') {
+        clearSelection();
+        return;
+      }
+      
+      // 엔터키: 아래 셀로 이동
+      if (e.key === 'Enter' && focusedCell) {
+        e.preventDefault();
+        
+        const currentPos = getCellPosition(focusedCell.modelId, focusedCell.carrier, focusedCell.condition);
+        const newRow = Math.min(allModels.length - 1, currentPos.row + 1);
+        const newCol = currentPos.col;
+        
+        const newCell = getCellFromPosition(newRow, newCol);
+        if (newCell) {
+          selectCell(newCell, false, true);
+        }
+        return;
+      }
+      
+      // Tab키: 오른쪽 셀로 이동
+      if (e.key === 'Tab' && focusedCell) {
+        e.preventDefault();
+        
+        const currentPos = getCellPosition(focusedCell.modelId, focusedCell.carrier, focusedCell.condition);
+        let newRow = currentPos.row;
+        let newCol = currentPos.col;
+        
+        if (e.shiftKey) {
+          // Shift+Tab: 왼쪽 셀로 이동
+          newCol = Math.max(2, currentPos.col - 1);
+        } else {
+          // Tab: 오른쪽 셀로 이동
+          newCol = Math.min(2 + CARRIERS.length * 2 - 1, currentPos.col + 1);
+        }
+        
+        const newCell = getCellFromPosition(newRow, newCol);
+        if (newCell) {
+          selectCell(newCell, false, true);
+        }
+        return;
+      }
+      
+      // 화살표 키로 셀 이동
+      if (focusedCell && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+        e.preventDefault();
+        
+        const currentPos = getCellPosition(focusedCell.modelId, focusedCell.carrier, focusedCell.condition);
+        let newRow = currentPos.row;
+        let newCol = currentPos.col;
+        
+        switch (e.key) {
+          case 'ArrowUp':
+            newRow = Math.max(0, currentPos.row - 1);
+            break;
+          case 'ArrowDown':
+            newRow = Math.min(allModels.length - 1, currentPos.row + 1);
+            break;
+          case 'ArrowLeft':
+            newCol = Math.max(2, currentPos.col - 1); // Skip checkbox and model info columns
+            break;
+          case 'ArrowRight':
+            newCol = Math.min(2 + CARRIERS.length * 2 - 1, currentPos.col + 1);
+            break;
+        }
+        
+        const newCell = getCellFromPosition(newRow, newCol);
+        if (newCell) {
+          if (e.shiftKey) {
+            // Shift+화살표: 범위 선택 확장
+            if (selectionRange) {
+              selectRange(selectionRange.start, newCell);
+            } else {
+              selectRange(focusedCell, newCell);
+            }
+          } else {
+            // 일반 화살표: 셀 이동 (입력 필드에 포커스)
+            selectCell(newCell, false, true);
+          }
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [focusedCell, selectedCells, selectionRange, allModels, tableData]);
 
   // 인증 상태 확인 중
   if (isCheckingAuth) {
@@ -882,7 +1388,13 @@ export default function ProductTableEditor({
           <Card>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
-                <Table className="border-collapse w-auto table-auto" style={{ minWidth: '600px' }}>
+                <Table 
+                  ref={tableRef}
+                  className="border-collapse w-auto table-auto select-none" 
+                  style={{ minWidth: '600px' }}
+                  onMouseUp={handleCellMouseUp}
+                  onMouseLeave={handleCellMouseUp}
+                >
                   <TableHeader>
                     <TableRow>
                       <TableHead className="border-r w-8 p-0">
@@ -966,7 +1478,11 @@ export default function ProductTableEditor({
                                         variant="ghost"
                                         size="sm"
                                         className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
-                                        onClick={() => deleteRow(model.id)}
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          deleteRow(model.id);
+                                        }}
                                         title="삭제"
                                       >
                                         <X className="h-3 w-3" />
@@ -989,15 +1505,47 @@ export default function ProductTableEditor({
                                   const isLastCarrier = carrier === CARRIERS[CARRIERS.length - 1];
                                   const isLastCondition = condition === CONDITIONS[CONDITIONS.length - 1];
                                   
+                                  const cellKey = getCellKey(model.id, carrier, condition);
+                                  const isSelected = selectedCells.has(cellKey);
+                                  const isFocused = focusedCell && 
+                                    focusedCell.modelId === model.id && 
+                                    focusedCell.carrier === carrier && 
+                                    focusedCell.condition === condition;
+                                  
                                   return (
-                                    <TableCell key={`${carrier}-${condition}`} className={`p-0.5 sm:p-1 border-r ${isLastCarrier && isLastCondition ? 'border-r-0' : ''}`}>
+                                    <TableCell 
+                                      key={`${carrier}-${condition}`} 
+                                      ref={(el) => {
+                                        if (el) cellRefs.current.set(cellKey, el);
+                                      }}
+                                      className={`p-0.5 sm:p-1 border-r ${isLastCarrier && isLastCondition ? 'border-r-0' : ''} ${
+                                        isSelected ? 'bg-blue-100 border-blue-300' : ''
+                                      } ${
+                                        isFocused ? 'ring-2 ring-blue-500' : ''
+                                      } cursor-cell`}
+                                      onMouseDown={(e) => handleCellMouseDown(e, { modelId: model.id, carrier, condition })}
+                                      onMouseEnter={() => handleCellMouseEnter({ modelId: model.id, carrier, condition })}
+                                    >
                                       <div className="space-y-1">
                                         <div className="relative flex items-center">
                                           <input
                                             type="text"
                                             placeholder="0"
                                             value={formatPrice(data?.price || '')}
+                                            onFocus={(e) => {
+                                              e.stopPropagation();
+                                              // 입력 필드 포커스 시 해당 셀 선택
+                                              selectCell({ modelId: model.id, carrier, condition });
+                                            }}
+                                            onClick={(e) => {
+                                              // 입력 필드 클릭 시 이벤트 전파 중지
+                                              e.stopPropagation();
+                                              // 해당 셀 선택
+                                              selectCell({ modelId: model.id, carrier, condition });
+                                            }}
                                             onChange={(e) => {
+                                              e.stopPropagation(); // 이벤트 전파 중지
+                                              
                                               let value = e.target.value;
                                               
                                               // 숫자와 음수 기호만 허용
@@ -1028,19 +1576,25 @@ export default function ProductTableEditor({
                                                 handlePriceChange(model.id, carrier, condition, priceInWon);
                                               }
                                             }}
-                                            className={`w-full text-center bg-transparent text-xs ${hasError ? 'text-red-500' : ''}`}
+                                            onKeyDown={(e) => {
+                                              e.stopPropagation(); // 키보드 이벤트 전파 중지
+                                            }}
+                                            className={`w-full text-center text-xs px-1 py-0.5 rounded ${hasError ? 'text-red-500 bg-red-50' : 'bg-transparent hover:bg-gray-50 focus:bg-white focus:ring-1 focus:ring-blue-500'}`}
                                             style={{ 
-                                              border: 'none !important', 
-                                              outline: 'none !important', 
-                                              boxShadow: 'none !important',
-                                              background: 'transparent !important'
+                                              border: 'none', 
+                                              outline: 'none',
+                                              boxShadow: 'none',
+                                              background: 'transparent'
                                             }}
                                           />
                                           <Button
                                             variant="ghost"
                                             size="sm"
                                             className="absolute right-0 h-4 w-4 p-0 text-muted-foreground hover:text-foreground"
-                                            onClick={() => openConditionModal(model.id, carrier, condition)}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              openConditionModal(model.id, carrier, condition);
+                                            }}
                                             title={data?.additionalConditions && data.additionalConditions.length > 0 ? "조건 수정" : "조건 추가"}
                                           >
                                             <Plus className="h-2 w-2" />

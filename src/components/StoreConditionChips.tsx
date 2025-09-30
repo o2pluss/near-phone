@@ -1,6 +1,7 @@
 import React from 'react';
 import { Badge } from './ui/badge';
 import { getConditionStyle } from '../lib/conditionStyles';
+import { getCarrierLabel } from '../lib/constants/codes';
 
 interface StoreConditionChipsProps {
   productCarrier: "kt" | "skt" | "lgu";
@@ -19,23 +20,18 @@ export function StoreConditionChips({
     <div className="flex flex-wrap gap-1">
       {/* 통신사 CHIP (맨 앞에 표시) */}
       <Badge className={`${sizeClasses} bg-blue-50 text-blue-700`}>
-        {productCarrier.toUpperCase()}
+        {getCarrierLabel(productCarrier.toUpperCase() as any)}
       </Badge>
       
       {/* 조건 CHIPs */}
       {conditions.map((condition, index) => {
-        const { icon: IconComponent, className } = getConditionStyle(condition);
+        const { className } = getConditionStyle(condition);
         return (
           <Badge
             key={index}
             className={`${sizeClasses} ${className}`}
           >
-            <div className="flex items-center gap-0.5">
-              {IconComponent && (
-                <IconComponent className="h-2.5 w-2.5" />
-              )}
-              <span>{condition}</span>
-            </div>
+            {condition}
           </Badge>
         );
       })}

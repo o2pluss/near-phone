@@ -31,7 +31,7 @@ export default function ReservationTabContent({
   if (groupedReservations.length === 0) {
     return (
       <Card>
-        <CardContent className="text-center py-12">
+        <CardContent className="text-center pt-6">
           {tabType === "upcoming" ? (
             <>
               <h3 className="text-lg font-semibold mb-2">
@@ -44,7 +44,6 @@ export default function ReservationTabContent({
             </>
           ) : (
             <>
-              <Clock className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-semibold mb-2">
                 지난 예약 내역이 없습니다
               </h3>

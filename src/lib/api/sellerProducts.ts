@@ -1,37 +1,9 @@
-// 상품 테이블 API 클라이언트
+// 판매자용 상품 API 클라이언트 (인증 필요)
 
-export interface ProductTable {
-  id: string;
-  name: string;
-  exposureStartDate: string;
-  exposureEndDate: string;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-  productCount: number;
-  tableData?: any;
-  products?: any[];
-}
+import { ProductWithDetails, ProductCreateRequest, ProductUpdateRequest, ProductSearchRequest, ProductSearchResult } from '@/types/product';
 
-export interface ProductTableListResponse {
-  tables: ProductTable[];
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-  };
-}
-
-export interface ProductTableListParams {
-  page?: number;
-  limit?: number;
-  search?: string;
-  status?: 'all' | 'active' | 'expired';
-}
-
-// 상품 테이블 목록 조회
-export async function getProductTables(params: ProductTableListParams = {}): Promise<ProductTableListResponse> {
+// 판매자용 상품 목록 조회 (인증 필요)
+export async function getSellerProducts(params: ProductSearchRequest = {}): Promise<ProductSearchResult> {
   try {
     // 현재 세션에서 토큰 가져오기
     const { getCurrentSession } = await import('@/lib/auth');
@@ -43,12 +15,16 @@ export async function getProductTables(params: ProductTableListParams = {}): Pro
 
     const searchParams = new URLSearchParams();
     
-    if (params.page) searchParams.set('page', params.page.toString());
-    if (params.limit) searchParams.set('limit', params.limit.toString());
-    if (params.search) searchParams.set('search', params.search);
-    if (params.status) searchParams.set('status', params.status);
+    if (params.deviceModelId) searchParams.append('deviceModelId', params.deviceModelId);
+    if (params.carrier) searchParams.append('carrier', params.carrier);
+    if (params.storage) searchParams.append('storage', params.storage);
+    if (params.manufacturer) searchParams.append('manufacturer', params.manufacturer);
+    if (params.model) searchParams.append('model', params.model);
+    if (params.isActive !== undefined) searchParams.append('isActive', params.isActive.toString());
+    if (params.page) searchParams.append('page', params.page.toString());
+    if (params.limit) searchParams.append('limit', params.limit.toString());
 
-    const response = await fetch(`/api/product-tables?${searchParams.toString()}`, {
+    const response = await fetch(`/api/seller/products?${searchParams.toString()}`, {
       headers: {
         'Authorization': `Bearer ${session.access_token}`,
         'Content-Type': 'application/json',
@@ -61,13 +37,13 @@ export async function getProductTables(params: ProductTableListParams = {}): Pro
 
     return await response.json();
   } catch (error) {
-    console.error('상품 테이블 목록 조회 실패:', error);
+    console.error('판매자 상품 목록 조회 실패:', error);
     throw error;
   }
 }
 
-// 특정 상품 테이블 조회
-export async function getProductTable(id: string): Promise<ProductTable> {
+// 판매자용 특정 상품 조회 (인증 필요)
+export async function getSellerProduct(id: string): Promise<ProductWithDetails> {
   try {
     // 현재 세션에서 토큰 가져오기
     const { getCurrentSession } = await import('@/lib/auth');
@@ -77,7 +53,7 @@ export async function getProductTable(id: string): Promise<ProductTable> {
       throw new Error('로그인이 필요합니다.');
     }
 
-    const response = await fetch(`/api/product-tables/${id}`, {
+    const response = await fetch(`/api/seller/products/${id}`, {
       headers: {
         'Authorization': `Bearer ${session.access_token}`,
         'Content-Type': 'application/json',
@@ -90,58 +66,45 @@ export async function getProductTable(id: string): Promise<ProductTable> {
 
     return await response.json();
   } catch (error) {
-    console.error('상품 테이블 조회 실패:', error);
+    console.error('판매자 상품 조회 실패:', error);
     throw error;
   }
 }
 
-// 상품 테이블 생성
-export async function createProductTable(data: {
-  name: string;
-  exposureStartDate: string;
-  exposureEndDate: string;
-  tableData: any;
-  products: any[];
-}): Promise<{ success: boolean; data?: ProductTable; error?: string }> {
+// 판매자용 상품 생성 (인증 필요)
+export async function createSellerProduct(data: ProductCreateRequest): Promise<ProductWithDetails> {
   try {
-    // 기존 auth.ts의 getCurrentSession 사용
+    // 현재 세션에서 토큰 가져오기
     const { getCurrentSession } = await import('@/lib/auth');
     const session = await getCurrentSession();
     
     if (!session?.access_token) {
-      return { success: false, error: '로그인이 필요합니다.' };
+      throw new Error('로그인이 필요합니다.');
     }
 
-    const response = await fetch('/api/product-tables', {
+    const response = await fetch('/api/seller/products', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
         'Authorization': `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify(data),
     });
 
     if (!response.ok) {
       const errorData = await response.json();
-      return { success: false, error: errorData.error || `HTTP error! status: ${response.status}` };
+      throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
     }
 
-    const responseData = await response.json();
-    return { success: true, data: responseData };
+    return await response.json();
   } catch (error) {
-    console.error('상품 테이블 생성 실패:', error);
-    return { success: false, error: error instanceof Error ? error.message : '상품 테이블 생성 중 오류가 발생했습니다.' };
+    console.error('판매자 상품 생성 실패:', error);
+    throw error;
   }
 }
 
-// 상품 테이블 수정
-export async function updateProductTable(id: string, data: {
-  name: string;
-  exposureStartDate: string;
-  exposureEndDate: string;
-  tableData: any;
-  products?: any[];
-}): Promise<ProductTable> {
+// 판매자용 상품 수정 (인증 필요)
+export async function updateSellerProduct(id: string, data: ProductUpdateRequest): Promise<ProductWithDetails> {
   try {
     // 현재 세션에서 토큰 가져오기
     const { getCurrentSession } = await import('@/lib/auth');
@@ -151,7 +114,7 @@ export async function updateProductTable(id: string, data: {
       throw new Error('로그인이 필요합니다.');
     }
 
-    const response = await fetch(`/api/product-tables/${id}`, {
+    const response = await fetch(`/api/seller/products/${id}`, {
       method: 'PUT',
       headers: {
         'Authorization': `Bearer ${session.access_token}`,
@@ -167,13 +130,13 @@ export async function updateProductTable(id: string, data: {
 
     return await response.json();
   } catch (error) {
-    console.error('상품 테이블 수정 실패:', error);
+    console.error('판매자 상품 수정 실패:', error);
     throw error;
   }
 }
 
-// 상품 테이블 삭제
-export async function deleteProductTable(id: string): Promise<void> {
+// 판매자용 상품 삭제 (인증 필요)
+export async function deleteSellerProduct(id: string): Promise<void> {
   try {
     // 현재 세션에서 토큰 가져오기
     const { getCurrentSession } = await import('@/lib/auth');
@@ -183,7 +146,7 @@ export async function deleteProductTable(id: string): Promise<void> {
       throw new Error('로그인이 필요합니다.');
     }
 
-    const response = await fetch(`/api/product-tables/${id}`, {
+    const response = await fetch(`/api/seller/products/${id}`, {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${session.access_token}`,
@@ -196,7 +159,7 @@ export async function deleteProductTable(id: string): Promise<void> {
       throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
     }
   } catch (error) {
-    console.error('상품 테이블 삭제 실패:', error);
+    console.error('판매자 상품 삭제 실패:', error);
     throw error;
   }
 }

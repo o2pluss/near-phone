@@ -12,12 +12,52 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    // 인증 토큰 확인
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json(
+        { error: '유효한 인증 토큰이 필요합니다.' },
+        { status: 401 }
+      );
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    
+    // 토큰 유효성 검증
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: '토큰 검증에 실패했습니다.' },
+        { status: 401 }
+      );
+    }
+
+    // 현재 사용자의 스토어 ID 조회
+    const { data: storeData, error: storeError } = await supabase
+      .from('stores')
+      .select('id')
+      .eq('seller_id', user.id)
+      .single();
+
+    if (storeError || !storeData) {
+      return NextResponse.json(
+        { error: '스토어 정보를 찾을 수 없습니다.' },
+        { status: 404 }
+      );
+    }
+
     const { id } = params;
 
+    // 상품 테이블 조회 (스토어별 필터링)
     const { data, error } = await supabase
       .from('product_tables')
-      .select('*')
+      .select(`
+        *,
+        products!inner(store_id)
+      `)
       .eq('id', id)
+      .eq('products.store_id', storeData.id)
       .single();
 
     if (error) {
@@ -28,11 +68,12 @@ export async function GET(
       );
     }
 
-    // 상품 데이터 조회
+    // 상품 데이터 조회 (스토어별 필터링)
     const { data: products, count: productCount } = await supabase
       .from('products')
       .select('*')
-      .eq('table_id', id);
+      .eq('table_id', id)
+      .eq('store_id', storeData.id);
 
     return NextResponse.json({
       id: data.id,

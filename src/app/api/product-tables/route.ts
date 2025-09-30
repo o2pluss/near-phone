@@ -11,6 +11,41 @@ const supabase = createClient(
 // GET /api/product-tables - 상품 테이블 목록 조회
 export async function GET(request: NextRequest) {
   try {
+    // 인증 토큰 확인
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json(
+        { error: '유효한 인증 토큰이 필요합니다.' },
+        { status: 401 }
+      );
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    
+    // 토큰 유효성 검증
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: '토큰 검증에 실패했습니다.' },
+        { status: 401 }
+      );
+    }
+
+    // 현재 사용자의 스토어 ID 조회
+    const { data: storeData, error: storeError } = await supabase
+      .from('stores')
+      .select('id')
+      .eq('seller_id', user.id)
+      .single();
+
+    if (storeError || !storeData) {
+      return NextResponse.json(
+        { error: '스토어 정보를 찾을 수 없습니다.' },
+        { status: 404 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '10');
@@ -19,20 +54,32 @@ export async function GET(request: NextRequest) {
 
     const offset = (page - 1) * limit;
 
-    // 기본 쿼리
+    // 기본 쿼리 - 스토어별 필터링 추가
     let query = supabase
       .from('product_tables')
-      .select('*', { count: 'exact' });
+      .select(`
+        *,
+        products!inner(store_id)
+      `, { count: 'exact' })
+      .eq('products.store_id', storeData.id);
 
     // 검색 조건 (name으로 검색)
     if (search) {
       query = query.ilike('name', `%${search}%`);
     }
 
-    // 상태 필터
+    // 상태 필터 (노출기간 기준)
     if (status !== 'all') {
-      const isActive = status === 'active';
-      query = query.eq('is_active', isActive);
+      const today = new Date().toISOString().split('T')[0];
+      if (status === 'active') {
+        // 활성: 현재 날짜가 노출기간 내에 있음
+        query = query
+          .lte('exposure_start_date', today)
+          .gte('exposure_end_date', today);
+      } else if (status === 'expired') {
+        // 만료: 현재 날짜가 노출기간을 벗어남
+        query = query.or(`exposure_start_date.gt.${today},exposure_end_date.lt.${today}`);
+      }
     }
 
     // 페이지네이션
@@ -51,13 +98,14 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 각 테이블의 상품 개수 조회
+    // 각 테이블의 상품 개수 조회 (스토어별 필터링)
     const tablesWithProductCount = await Promise.all(
       (data || []).map(async (table) => {
         const { count: productCount } = await supabase
           .from('products')
           .select('*', { count: 'exact', head: true })
-          .eq('table_id', table.id);
+          .eq('table_id', table.id)
+          .eq('store_id', storeData.id);
 
         return {
           id: table.id,

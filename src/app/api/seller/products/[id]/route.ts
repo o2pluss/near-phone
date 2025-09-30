@@ -7,7 +7,7 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// GET /api/products/[id] - 특정 상품 조회
+// GET /api/seller/products/[id] - 판매자용 특정 상품 조회 (인증 필요)
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -107,7 +107,7 @@ export async function GET(
   }
 }
 
-// PUT /api/products/[id] - 상품 수정
+// PUT /api/seller/products/[id] - 판매자용 상품 수정 (인증 필요)
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -235,16 +235,52 @@ export async function PUT(
   }
 }
 
-// DELETE /api/products/[id] - 상품 삭제
+// DELETE /api/seller/products/[id] - 판매자용 상품 삭제 (인증 필요)
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    // 인증 토큰 확인
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json(
+        { error: '유효한 인증 토큰이 필요합니다.' },
+        { status: 401 }
+      );
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    
+    // 토큰 유효성 검증
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: '토큰 검증에 실패했습니다.' },
+        { status: 401 }
+      );
+    }
+
+    // 현재 사용자의 스토어 ID 조회
+    const { data: storeData, error: storeError } = await supabase
+      .from('stores')
+      .select('id')
+      .eq('seller_id', user.id)
+      .single();
+
+    if (storeError || !storeData) {
+      return NextResponse.json(
+        { error: '스토어 정보를 찾을 수 없습니다.' },
+        { status: 404 }
+      );
+    }
+
     const { error } = await supabase
       .from('products')
       .delete()
-      .eq('id', params.id);
+      .eq('id', params.id)
+      .eq('store_id', storeData.id); // 스토어 소유권 검증
 
     if (error) {
       console.error('상품 삭제 실패:', error);
@@ -254,7 +290,7 @@ export async function DELETE(
       );
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ message: '상품이 삭제되었습니다.' });
   } catch (error) {
     console.error('API 오류:', error);
     return NextResponse.json(

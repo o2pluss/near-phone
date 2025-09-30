@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useEffect, useRef } from "react";
-import { loadKakaoMapScript } from "../../utils/kakaoMapLoader";
+import { useRef, useEffect } from 'react';
+import { loadKakaoMapScript } from '@/utils/kakaoMapLoader';
 
 interface KakaoMapProps {
   appKey: string;
