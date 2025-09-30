@@ -1,10 +1,11 @@
-'use client';
+"use client";
 
+import { Suspense } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import StoreDetail from '@/components/StoreDetail';
 
-export default function DetailPage() {
+function DetailPageInner() {
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
@@ -56,5 +57,13 @@ export default function DetailPage() {
       profile={profile}
       productId={productId}
     />
+  );
+}
+
+export default function DetailPage() {
+  return (
+    <Suspense fallback={null}>
+      <DetailPageInner />
+    </Suspense>
   );
 }

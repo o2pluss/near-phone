@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import { useEffect } from 'react';
+import { Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import LoginScreen from '@/components/LoginScreen';
 import { Loader2 } from 'lucide-react';
 
-export default function LoginPage() {
+function LoginPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, profile, loading, signIn } = useAuth();
@@ -85,5 +85,13 @@ export default function LoginPage() {
       onSignup={handleSignup}
       onKakaoLogin={handleKakaoLogin}
     />
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginPageInner />
+    </Suspense>
   );
 }

@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { Loader2 } from 'lucide-react';
 
-export default function AuthCallbackPage() {
+function AuthCallbackPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
@@ -100,4 +100,12 @@ export default function AuthCallbackPage() {
   }
 
   return null;
+}
+
+export default function AuthCallbackPage() {
+  return (
+    <Suspense fallback={null}>
+      <AuthCallbackPageInner />
+    </Suspense>
+  );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,7 @@ import OperatingHoursEditor, { OperatingHours } from "@/components/seller/Operat
 import SellerPageHeader from "@/components/seller/SellerPageHeader";
 import AddressSearch from "@/components/AddressSearch";
 
-export default function StoreEditPage() {
+function StoreEditPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isEdit = searchParams.get('mode') === 'edit';
@@ -579,5 +579,13 @@ export default function StoreEditPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function StoreEditPage() {
+  return (
+    <Suspense fallback={null}>
+      <StoreEditPageInner />
+    </Suspense>
   );
 }
