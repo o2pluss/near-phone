@@ -91,7 +91,6 @@ export const loginWithKakao = async () => {
 
     console.log('카카오 로그인 리다이렉트 시작 (JS SDK authorize)');
 
-    // 데스크톱 웹에서는 카카오톡 인텐트 오류를 피하기 위해 throughTalk 비활성화
     const isMobile = () => {
       if (typeof navigator === 'undefined') return false;
       const ua = navigator.userAgent || '';
@@ -100,6 +99,7 @@ export const loginWithKakao = async () => {
 
     window.Kakao.Auth.authorize({
       redirectUri: `${window.location.origin}/auth/kakao/callback`,
+      // 모바일: 카카오톡 앱 우선. 데스크톱: 웹 플로우 강제
       throughTalk: isMobile(),
     });
 
