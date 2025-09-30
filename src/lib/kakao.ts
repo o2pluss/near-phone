@@ -91,26 +91,46 @@ export const loginWithKakao = async () => {
 
     console.log('카카오 로그인 리다이렉트 시작 (JS SDK authorize)');
 
-    const isMobile = () => {
+    const isMobileDevice = () => {
       if (typeof navigator === 'undefined') return false;
       const ua = navigator.userAgent || '';
       return /Android|iPhone|iPad|iPod|Windows Phone|IEMobile|Mobile/i.test(ua);
     };
 
-    if (isMobile()) {
-      // 모바일: 카카오톡 앱 우선
-      window.Kakao.Auth.authorize({
-        redirectUri: `${window.location.origin}/auth/kakao/callback`,
-        throughTalk: true,
-      });
-    } else {
-      // 데스크톱: SDK 우회, 웹 인가 URL로 직접 이동 (intent 회피)
+    const isInAppBrowser = () => {
+      if (typeof navigator === 'undefined') return false;
+      const ua = (navigator.userAgent || '').toLowerCase();
+      // 대표적인 인앱 브라우저 식별자들
+      return (
+        ua.includes('kakaotalk') ||
+        ua.includes('naver') ||
+        ua.includes('fbav') || // Facebook iOS
+        ua.includes('fban') || // Facebook Android
+        ua.includes('instagram') ||
+        ua.includes('line') ||
+        ua.includes('daumapps') ||
+        ua.includes('crios') && ua.includes('gsa') // iOS Chrome + Google App 조합 등
+      );
+    };
+
+    const goWebAuthorize = () => {
       const clientId = process.env.NEXT_PUBLIC_KAKAO_APP_KEY;
       const redirectUri = `${window.location.origin}/auth/kakao/callback`;
       const authUrl = `https://kauth.kakao.com/oauth/authorize?client_id=${encodeURIComponent(
         clientId || ''
       )}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code`;
       window.location.href = authUrl;
+    };
+
+    if (isMobileDevice() && !isInAppBrowser()) {
+      // 모바일 독립 브라우저: 카카오톡 앱 우선
+      window.Kakao.Auth.authorize({
+        redirectUri: `${window.location.origin}/auth/kakao/callback`,
+        throughTalk: true,
+      });
+    } else {
+      // 데스크톱 또는 인앱 브라우저: 웹 인가 URL로 직접 이동 (intent 회피)
+      goWebAuthorize();
     }
 
     // 리다이렉트되므로 여기까지 도달하지 않음
