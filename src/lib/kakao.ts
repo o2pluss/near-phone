@@ -91,9 +91,18 @@ export const loginWithKakao = async () => {
 
     console.log('카카오 로그인 리다이렉트 시작 (JS SDK authorize)');
 
-    // JS SDK를 통한 리다이렉트 인가 요청
+    // JS SDK를 통한 리다이렉트 인가 요청 (카카오톡 앱 우선, 웹 폴백)
     window.Kakao.Auth.authorize({
       redirectUri: `${window.location.origin}/auth/kakao/callback`,
+      throughTalk: true, // 카카오톡 앱 사용 시도
+      success: function(authObj: any) {
+        console.log('카카오톡 앱 로그인 성공:', authObj);
+      },
+      fail: function(err: any) {
+        console.log('카카오톡 앱 로그인 실패, 웹으로 폴백:', err);
+        // 웹 브라우저로 직접 리다이렉트
+        window.location.href = `https://kauth.kakao.com/oauth/authorize?client_id=${process.env.NEXT_PUBLIC_KAKAO_APP_KEY}&redirect_uri=${encodeURIComponent(window.location.origin + '/auth/kakao/callback')}&response_type=code`;
+      }
     });
 
     // 리다이렉트되므로 여기까지 도달하지 않음
