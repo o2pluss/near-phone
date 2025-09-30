@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, Session, AuthError } from '@supabase/supabase-js';
+import { User, Session, AuthError, AuthChangeEvent } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabaseClient';
 import { initializeSession } from '@/lib/auth';
 
@@ -81,7 +81,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session: Session | null) => {
       console.log('Auth state change:', { event, session: !!session, user: !!session?.user });
       setSession(session);
       setUser(session?.user ?? null);
@@ -301,7 +301,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithKakao = async (kakaoUserInfo: { id: string; nickname: string; profile_image?: string }) => {
     try {
       console.log('signInWithKakao 시작:', kakaoUserInfo);
-      const email = `kakao_${kakaoUserInfo.id}@kakao.local`;
+      const email = `kakao_${kakaoUserInfo.id}@kakao.example.com`;
       // 고정 비밀번호 전략 (서버 환경변수로 솔트 가능)
       const stablePassword = `kakao_${kakaoUserInfo.id}_oauth_password`;
       console.log('카카오 로그인 시도 - 이메일:', email);
