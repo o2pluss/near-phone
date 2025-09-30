@@ -9,9 +9,19 @@ export async function middleware(req: NextRequest) {
     },
   });
 
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  // 환경변수 미설정 시 미들웨어를 우회하여 500 방지
+  if (!supabaseUrl || !supabaseAnonKey) {
+    response.headers.set('X-Middleware-Bypass', 'true');
+    response.headers.set('X-Middleware-Reason', 'Missing Supabase env');
+    return response;
+  }
+
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl,
+    supabaseAnonKey,
     {
       cookies: {
         get(name: string) {
@@ -56,10 +66,16 @@ export async function middleware(req: NextRequest) {
   );
 
   // 더 안전한 방법으로 사용자 인증 확인
-  const {
-    data: { user },
-    error: userError
-  } = await supabase.auth.getUser();
+  let user: any = null;
+  let userError: any = null;
+  try {
+    const result = await supabase.auth.getUser();
+    user = result.data.user;
+    userError = result.error;
+  } catch (e: any) {
+    user = null;
+    userError = e;
+  }
 
   console.log('=== 미들웨어 세션 체크 ===');
   console.log('Pathname:', req.nextUrl.pathname);

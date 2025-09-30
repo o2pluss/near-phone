@@ -97,11 +97,21 @@ export const loginWithKakao = async () => {
       return /Android|iPhone|iPad|iPod|Windows Phone|IEMobile|Mobile/i.test(ua);
     };
 
-    window.Kakao.Auth.authorize({
-      redirectUri: `${window.location.origin}/auth/kakao/callback`,
-      // 모바일: 카카오톡 앱 우선. 데스크톱: 웹 플로우 강제
-      throughTalk: isMobile(),
-    });
+    if (isMobile()) {
+      // 모바일: 카카오톡 앱 우선
+      window.Kakao.Auth.authorize({
+        redirectUri: `${window.location.origin}/auth/kakao/callback`,
+        throughTalk: true,
+      });
+    } else {
+      // 데스크톱: SDK 우회, 웹 인가 URL로 직접 이동 (intent 회피)
+      const clientId = process.env.NEXT_PUBLIC_KAKAO_APP_KEY;
+      const redirectUri = `${window.location.origin}/auth/kakao/callback`;
+      const authUrl = `https://kauth.kakao.com/oauth/authorize?client_id=${encodeURIComponent(
+        clientId || ''
+      )}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code`;
+      window.location.href = authUrl;
+    }
 
     // 리다이렉트되므로 여기까지 도달하지 않음
     return Promise.resolve();
