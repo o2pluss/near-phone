@@ -31,8 +31,9 @@ export interface SellerApplication {
 export async function createSellerApplication(data: SellerApplicationData) {
   try {
     // 1. 먼저 사용자 계정 생성
+    const normalizedEmail = (data.email || '').trim().toLowerCase();
     const { data: authData, error: authError } = await supabase.auth.signUp({
-      email: data.email,
+      email: normalizedEmail,
       password: data.password,
     });
 

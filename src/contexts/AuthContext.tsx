@@ -234,8 +234,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signUp = async (email: string, password: string, userData?: Partial<Profile>) => {
     try {
+      const normalizedEmail = (email || '').trim().toLowerCase();
       const { data, error } = await supabase.auth.signUp({
-        email,
+        email: normalizedEmail,
         password,
         options: {
           data: {
@@ -301,7 +302,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithKakao = async (kakaoUserInfo: { id: string; nickname: string; profile_image?: string }) => {
     try {
       console.log('signInWithKakao 시작:', kakaoUserInfo);
-      const email = `kakao_${kakaoUserInfo.id}@kakao.example.com`;
+      // 현재 앱 호스트 기반으로 유효한 이메일 구성 (예: react-next-template-psi.vercel.app)
+      const resolveHost = () => {
+        try {
+          if (typeof window !== 'undefined' && window.location?.hostname) {
+            return window.location.hostname;
+          }
+          const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+          if (appUrl) {
+            return new URL(appUrl).hostname;
+          }
+        } catch {}
+        return 'react-next-template-psi.vercel.app';
+      };
+      const host = resolveHost();
+      const email = `kakao+${kakaoUserInfo.id}@${host}`;
       // 고정 비밀번호 전략 (서버 환경변수로 솔트 가능)
       const stablePassword = `kakao_${kakaoUserInfo.id}_oauth_password`;
       console.log('카카오 로그인 시도 - 이메일:', email);

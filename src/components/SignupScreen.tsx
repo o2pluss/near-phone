@@ -54,8 +54,9 @@ export default function SignupScreen({ onBack, onSignup }: SignupScreenProps) {
     
     try {
       // 1. 먼저 사용자 계정 생성 (자동 로그인 방지)
+      const normalizedEmail = (data.email || '').trim().toLowerCase();
       const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: data.email,
+        email: normalizedEmail,
         password: data.password,
         options: {
           data: {
