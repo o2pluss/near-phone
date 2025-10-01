@@ -22,28 +22,14 @@ interface SignupScreenProps {
 }
 
 export default function SignupScreen({ onBack, onSignup }: SignupScreenProps) {
-  const [isSubmitted, setIsSubmitted] = useState(() => {
-    // localStorage에서 isSubmitted 상태 복원
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('signupSubmitted') === 'true';
-    }
-    return false;
-  });
-  const isSubmittedRef = useRef(isSubmitted);
+  const [isSubmitted, setIsSubmitted] = useState(false);
+  const isSubmittedRef = useRef(false);
   const { register, handleSubmit, formState: { errors } } = useForm<SellerSignupFormData>();
 
-  // isSubmitted 상태 변경 추적 및 localStorage 저장
+  // isSubmitted 상태 변경 추적
   useEffect(() => {
     console.log('isSubmitted 상태 변경:', isSubmitted);
     isSubmittedRef.current = isSubmitted;
-    
-    if (typeof window !== 'undefined') {
-      if (isSubmitted) {
-        localStorage.setItem('signupSubmitted', 'true');
-      } else {
-        localStorage.removeItem('signupSubmitted');
-      }
-    }
   }, [isSubmitted]);
 
   const [isLoading, setIsLoading] = useState(false);
@@ -51,6 +37,8 @@ export default function SignupScreen({ onBack, onSignup }: SignupScreenProps) {
   const onSellerSubmit = async (data: SellerSignupFormData) => {
     console.log('Seller signup data:', data);
     setIsLoading(true);
+    
+    let createdUserId: string | null = null;
     
     try {
       // 1. 먼저 사용자 계정 생성 (자동 로그인 방지)
@@ -81,9 +69,13 @@ export default function SignupScreen({ onBack, onSignup }: SignupScreenProps) {
         return;
       }
 
+      createdUserId = authData.user.id;
+      console.log('사용자 계정 생성 성공:', createdUserId);
+
       // 2. 프로필 생성 (RPC 함수 사용)
+      console.log('프로필 생성 시작...');
       const { error: profileError } = await supabase.rpc('upsert_profile', {
-        p_user_id: authData.user.id,
+        p_user_id: createdUserId,
         p_role: 'seller',
         p_name: data.name,
         p_phone: data.phone,
@@ -97,11 +89,14 @@ export default function SignupScreen({ onBack, onSignup }: SignupScreenProps) {
         return;
       }
 
+      console.log('프로필 생성 성공');
+
       // 3. 판매자 신청 데이터 저장
+      console.log('판매자 신청 데이터 저장 시작...');
       const { error: applicationError } = await supabase
         .from('seller_applications')
         .insert({
-          user_id: authData.user.id,
+          user_id: createdUserId,
           business_name: data.storeName,
           business_license: data.businessNumber,
           business_address: '', // 주소는 나중에 추가
@@ -114,25 +109,43 @@ export default function SignupScreen({ onBack, onSignup }: SignupScreenProps) {
 
       if (applicationError) {
         console.error('판매자 신청 저장 실패:', applicationError);
+        // 신청 저장 실패 시 프로필 삭제 시도
+        try {
+          await supabase.from('profiles').delete().eq('user_id', createdUserId);
+          console.log('실패한 프로필 정리 완료');
+        } catch (cleanupError) {
+          console.error('프로필 정리 실패:', cleanupError);
+        }
         alert('신청 저장에 실패했습니다: ' + applicationError.message);
         return;
       }
 
+      console.log('판매자 신청 저장 성공');
+
       // 4. 회원가입 후 즉시 로그아웃 (자동 로그인 방지)
       console.log('회원가입 성공, 로그아웃 시작');
-      
-      // 상태를 먼저 업데이트 (함수형 업데이트 사용)
-      setIsSubmitted(prev => {
-        console.log('isSubmitted 함수형 업데이트, 이전 값:', prev, '새 값: true');
-        return true;
-      });
       
       // 즉시 로그아웃
       await supabase.auth.signOut();
       console.log('로그아웃 완료');
+      
+      // 상태를 업데이트 (로그아웃 후)
+      setIsSubmitted(true);
+      console.log('isSubmitted 상태를 true로 설정');
     } catch (error) {
       console.error('판매자 신청 오류:', error);
-      alert('신청 중 오류가 발생했습니다.');
+      
+      // 사용자 계정이 생성되었다면 프로필 정리
+      if (createdUserId) {
+        try {
+          await supabase.from('profiles').delete().eq('user_id', createdUserId);
+          console.log('오류 발생으로 인한 프로필 정리 완료');
+        } catch (cleanupError) {
+          console.error('프로필 정리 실패:', cleanupError);
+        }
+      }
+      
+      alert('신청 중 오류가 발생했습니다: ' + (error instanceof Error ? error.message : '알 수 없는 오류'));
     } finally {
       setIsLoading(false);
     }
@@ -156,16 +169,11 @@ export default function SignupScreen({ onBack, onSignup }: SignupScreenProps) {
             <p className="text-sm text-green-800 font-medium">
               관리자 승인 후 서비스를 이용하실 수 있습니다.
             </p>
-            <p className="text-xs text-green-700">
-              승인 결과는 등록하신 이메일로 안내드립니다.
-            </p>
           </div>
           <Button 
             onClick={() => {
-              // localStorage 클리어
-              if (typeof window !== 'undefined') {
-                localStorage.removeItem('signupSubmitted');
-              }
+              // 상태 초기화
+              setIsSubmitted(false);
               
               if (onBack) {
                 onBack();

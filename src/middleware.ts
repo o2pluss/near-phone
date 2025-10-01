@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 export async function middleware(req: NextRequest) {
+  console.log('🚀 미들웨어 실행됨:', req.nextUrl.pathname);
+  
   let response = NextResponse.next({
     request: {
       headers: req.headers,
@@ -101,15 +103,13 @@ export async function middleware(req: NextRequest) {
   console.log('Pathname:', pathname);
   console.log('PublicRoutes:', publicRoutes);
   
-  // 정확한 경로 매칭과 시작 경로 매칭을 구분
+  // 정확한 경로 매칭만 허용 (시작 경로 매칭 제거)
   const isExactMatch = publicRoutes.includes(pathname);
-  const isStartMatch = publicRoutes.some(route => pathname.startsWith(route) && pathname !== route);
   
   console.log('Is exact match:', isExactMatch);
-  console.log('Is start match:', isStartMatch);
-  console.log('Is public route:', isExactMatch || isStartMatch);
+  console.log('Is public route:', isExactMatch);
   
-  if (isExactMatch || isStartMatch) {
+  if (isExactMatch) {
     console.log('공개 라우트, 접근 허용:', pathname);
     return response;
   }
@@ -124,9 +124,12 @@ export async function middleware(req: NextRequest) {
   }
 
   // 사용자 프로필에서 역할과 활성화 상태 확인
-  const { data: profile } = await supabase
+  console.log('=== 프로필 조회 시작 ===');
+  console.log('User ID:', user.id);
+  
+  const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('role, is_active')
+    .select('*')
     .eq('user_id', user.id)
     .single();
 
@@ -134,6 +137,7 @@ export async function middleware(req: NextRequest) {
   console.log('Pathname:', pathname);
   console.log('User ID:', user.id);
   console.log('Profile:', profile);
+  console.log('Profile Error:', profileError);
 
   if (!profile) {
     console.log('프로필 없음, /unauthorized로 리다이렉트');
@@ -141,13 +145,26 @@ export async function middleware(req: NextRequest) {
   }
 
   const { role, is_active } = profile;
+  console.log('=== 미들웨어 프로필 체크 ===');
   console.log('Role:', role, 'Is Active:', is_active);
+  console.log('Pathname:', pathname);
+  console.log('Profile data:', profile);
 
-  // 사용자 라우트 체크
+  // 승인되지 않은 판매자는 모든 페이지에서 승인 대기 페이지로 리다이렉트
+  if (role === 'seller' && !is_active) {
+    console.log('승인되지 않은 판매자 감지, /pending-approval로 리다이렉트');
+    return NextResponse.redirect(new URL('/pending-approval', req.url));
+  }
+
+  // 사용자 라우트 체크 (판매자는 접근 불가)
   if (userRoutes.some(route => pathname.startsWith(route))) {
     console.log('사용자 라우트 체크:', pathname, 'Role:', role);
     if (role !== 'user' && role !== 'admin') {
       console.log('사용자 권한 없음, /unauthorized로 리다이렉트');
+      // 판매자가 사용자 페이지에 접근하려고 할 때는 판매자 대시보드로 리다이렉트
+      if (role === 'seller') {
+        return NextResponse.redirect(new URL('/seller', req.url));
+      }
       return NextResponse.redirect(new URL('/unauthorized', req.url));
     }
     console.log('사용자 권한 확인됨, 접근 허용');
@@ -157,11 +174,6 @@ export async function middleware(req: NextRequest) {
   if (sellerRoutes.some(route => pathname.startsWith(route))) {
     if (role !== 'seller' && role !== 'admin') {
       return NextResponse.redirect(new URL('/unauthorized', req.url));
-    }
-
-    // 판매자 계정이 승인되지 않은 경우
-    if (role === 'seller' && !is_active) {
-      return NextResponse.redirect(new URL('/pending-approval', req.url));
     }
   }
 
@@ -186,7 +198,9 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * - public folder
+     * - api routes
+     * - src folder (source files)
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api|src|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 };

@@ -5,13 +5,28 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Clock, Mail, ArrowLeft } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabaseClient';
 
 export default function PendingApprovalPage() {
   const router = useRouter();
 
   const handleLogout = async () => {
-    // 로그아웃 로직 (필요한 경우)
-    router.push('/auth/login');
+    try {
+      // Supabase 로그아웃 처리
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) {
+        console.error('로그아웃 오류:', error);
+        // 오류가 발생해도 로그인 페이지로 이동
+      }
+      
+      // 로그인 페이지로 이동
+      router.push('/auth/login');
+    } catch (error) {
+      console.error('로그아웃 처리 중 오류:', error);
+      // 오류가 발생해도 로그인 페이지로 이동
+      router.push('/auth/login');
+    }
   };
 
   return (
@@ -27,9 +42,6 @@ export default function PendingApprovalPage() {
           <div className="bg-yellow-50 p-4 rounded-lg space-y-2">
             <p className="text-sm text-yellow-800 font-medium">
               관리자 승인 후 서비스를 이용하실 수 있습니다.
-            </p>
-            <p className="text-xs text-yellow-700">
-              승인 결과는 등록하신 이메일로 안내드립니다.
             </p>
           </div>
           <div className="space-y-2">

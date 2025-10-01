@@ -9,8 +9,17 @@ import { Home, Search, Heart, Calendar } from 'lucide-react';
 export function BottomNavigation() {
   const pathname = usePathname();
 
-  // 판매자 페이지에서는 하단 네비게이션 숨김
-  if (pathname.startsWith('/seller')) {
+  // 특정 페이지에서는 하단 네비게이션 숨김
+  const hiddenPaths = [
+    '/seller',           // 판매자 페이지
+    '/pending-approval', // 승인 대기 페이지
+    '/unauthorized',     // 권한 없음 페이지
+    '/admin',           // 관리자 페이지
+    '/auth/login',      // 로그인 페이지
+    '/auth/signup',     // 회원가입 페이지
+  ];
+  
+  if (hiddenPaths.some(path => pathname.startsWith(path))) {
     return null;
   }
 

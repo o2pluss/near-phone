@@ -124,22 +124,58 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const fetchUserProfile = async (user: any) => {
+    console.log('fetchUserProfile called for user:', user.id);
     
-    // user_metadata에서 역할 가져오기
-    const role = user.user_metadata?.role || 'user';
-    
-    const profile = {
-      user_id: user.id,
-      role: role,
-      name: user.user_metadata?.name || user.email?.split('@')[0] || '사용자',
-      phone: user.user_metadata?.phone || null,
-      login_type: 'email' as const,
-      is_active: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
+    try {
+      // profiles 테이블에서 실제 데이터 가져오기
+      const { data: profileData, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
 
-    return profile;
+      if (error) {
+        console.error('Profile fetch error:', error);
+        
+        // 프로필이 없으면 기본 프로필 생성
+        if (error.code === 'PGRST116') {
+          console.log('Profile not found, creating default profile...');
+          await createDefaultProfile(user.id);
+          
+          // 생성 후 다시 조회
+          const { data: newProfileData } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('user_id', user.id)
+            .single();
+            
+          return newProfileData;
+        } else {
+          throw error;
+        }
+      }
+
+      console.log('Profile found:', profileData);
+      return profileData;
+    } catch (error) {
+      console.error('Error in fetchUserProfile:', error);
+      
+      // 오류 발생 시 기본 프로필 반환
+      const role = user.user_metadata?.role || 'user';
+      // 판매자의 경우 is_active를 false로 설정 (승인 전까지)
+      const isActive = role === 'seller' ? false : true;
+      
+      return {
+        user_id: user.id,
+        role: role,
+        name: user.user_metadata?.name || user.email?.split('@')[0] || '사용자',
+        phone: user.user_metadata?.phone || null,
+        login_type: 'email' as const,
+        is_active: isActive,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+    }
   };
 
   const fetchProfile = async (userId: string) => {
@@ -190,14 +226,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // 이메일을 기반으로 역할 결정
-      let role: 'user' | 'seller' | 'admin' = 'user';
-      const email = user.user.email?.trim().toLowerCase();
-      if (email?.includes('admin')) {
-        role = 'admin';
-      } else if (email?.includes('seller') || email?.startsWith('store')) {
-        role = 'seller';
-      }
+      // user_metadata에서 역할 가져오기
+      const role = user.user.user_metadata?.role || 'user';
+      
+      // 판매자의 경우 is_active를 false로 설정 (승인 전까지)
+      const isActive = role === 'seller' ? false : true;
 
       const profileData = {
         user_id: userId,
@@ -205,7 +238,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         name: user.user.user_metadata?.name || user.user.email?.split('@')[0] || '사용자',
         phone: user.user.user_metadata?.phone || null,
         login_type: 'email',
-        is_active: true,
+        is_active: isActive,
       };
       
       console.log('Creating profile with data:', profileData);

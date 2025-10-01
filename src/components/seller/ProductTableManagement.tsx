@@ -82,7 +82,7 @@ export default function ProductTableManagement() {
       setTotalPages(response.pagination.totalPages);
     } catch (err) {
       console.error('상품 테이블 데이터 로드 실패:', err);
-      setError('상품 테이블 데이터를 불러오는데 실패했습니다.');
+      setError('매장 정보 등록 후 상품을 등록할 수 있습니다.');
     } finally {
       setLoading(false);
     }
