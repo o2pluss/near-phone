@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabaseClient';
+import { supabaseServer as supabase } from '@/lib/supabaseServer';
 
 // GET /api/device-models - 모든 단말기 모델 조회
 export async function GET(request: NextRequest) {
