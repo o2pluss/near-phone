@@ -145,7 +145,6 @@ export default function StoreManagement({
                   <p className="text-sm text-muted-foreground">매장 외관, 내부, 진열 사진 등을 등록해 보세요.</p>
                 </div>
               </div>
-              <Button variant="outline" size="sm">사진 추가</Button>
             </div>
           </CardContent>
         </Card>

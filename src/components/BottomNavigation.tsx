@@ -14,8 +14,7 @@ export function BottomNavigation() {
     '/seller',           // 판매자 페이지
     '/pending-approval', // 승인 대기 페이지
     '/unauthorized',     // 권한 없음 페이지
-    '/admin',           // 관리자 페이지
-    '/auth/login',      // 로그인 페이지
+    '/admin',           // 관리자 페이지    // 로그인 페이지
     '/auth/signup',     // 회원가입 페이지
   ];
   

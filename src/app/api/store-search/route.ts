@@ -49,7 +49,94 @@ export async function GET(request: NextRequest) {
     // 현재 날짜 (YYYY-MM-DD 형식)
     const today = new Date().toISOString().split('T')[0];
     
-    let query = supabaseServer
+    // 1단계: 사용자 조건에 맞는 상품이 있는 노출 가능한 테이블 찾기
+    let productQuery = supabaseServer
+      .from('products')
+      .select('store_id, table_id, device_model_id')
+      .eq('is_active', true);
+    
+    // 사용자 조건 적용
+    if (storeId) productQuery = productQuery.eq('store_id', storeId);
+    if (carrier) productQuery = productQuery.eq('carrier', carrier);
+    if (minPrice) productQuery = productQuery.gte('price', Number(minPrice));
+    if (maxPrice) productQuery = productQuery.lte('price', Number(maxPrice));
+    if (storage) productQuery = productQuery.eq('storage', storage);
+    if (signupType) {
+      productQuery = productQuery.contains('conditions', [signupType]);
+    }
+    if (conditions) {
+      const conditionArray = conditions.split(',').map(c => c.trim());
+      for (const condition of conditionArray) {
+        productQuery = productQuery.contains('conditions', [condition]);
+      }
+    }
+    
+    // 모델명 검색 처리
+    if (q) {
+      const deviceModelQuery = await supabaseServer
+        .from('device_models')
+        .select('id')
+        .or(`device_name.ilike.%${q}%,model_name.ilike.%${q}%`);
+        
+      if (deviceModelQuery.data && deviceModelQuery.data.length > 0) {
+        const deviceModelIds = deviceModelQuery.data.map(dm => dm.id);
+        productQuery = productQuery.in('device_model_id', deviceModelIds);
+      } else {
+        return NextResponse.json({ items: [], nextCursor: null });
+      }
+    }
+    
+    const { data: matchingProducts, error: productError } = await productQuery;
+    if (productError) {
+      console.error('Product search error:', productError);
+      return NextResponse.json({ error: productError.message }, { status: 500 });
+    }
+    
+    if (!matchingProducts || matchingProducts.length === 0) {
+      return NextResponse.json({ items: [], nextCursor: null });
+    }
+    
+    // 2단계: 각 매장별로 현재 노출 가능한 테이블 중 가장 최근 테이블 찾기
+    const storeTableMap = new Map<string, string>();
+    
+    // 매장별로 그룹화
+    const productsByStore = matchingProducts.reduce((acc, product) => {
+      const { store_id } = product;
+      if (!acc[store_id]) {
+        acc[store_id] = [];
+      }
+      acc[store_id].push(product);
+      return acc;
+    }, {} as Record<string, any[]>);
+    
+    // 각 매장별로 처리
+    for (const [store_id, products] of Object.entries(productsByStore)) {
+      // 해당 매장의 상품이 있는 테이블들 조회
+      const tableIds = [...new Set(products.map(p => p.table_id))];
+      
+      const { data: storeTables, error: storeTablesError } = await supabaseServer
+        .from('product_tables')
+        .select('id, created_at')
+        .in('id', tableIds)
+        .eq('is_active', true)
+        .lte('exposure_start_date', today)
+        .gte('exposure_end_date', today)
+        .order('created_at', { ascending: false });
+      
+      if (storeTablesError || !storeTables || storeTables.length === 0) continue;
+      
+      // 가장 최근 테이블 선택
+      storeTableMap.set(store_id, storeTables[0].id);
+    }
+    
+    if (storeTableMap.size === 0) {
+      return NextResponse.json({ items: [], nextCursor: null });
+    }
+    
+    // 3단계: 각 매장의 최신 테이블에서 사용자 조건에 맞는 상품 조회
+    const tableIds = Array.from(storeTableMap.values());
+    
+    let finalQuery = supabaseServer
       .from('products')
       .select(`
         *,
@@ -78,54 +165,39 @@ export async function GET(request: NextRequest) {
         )
       `)
       .eq('is_active', true)
-      .eq('product_tables.is_active', true)
-      // 노출 기간 필터링: 현재 날짜가 노출 기간에 포함되는지 확인
-      .lte('product_tables.exposure_start_date', today)
-      .gte('product_tables.exposure_end_date', today)
+      .in('table_id', tableIds)
       .order('created_at', { ascending: false })
       .limit(limit);
     
-    if (storeId) query = query.eq('store_id', storeId);
-    if (carrier) query = query.eq('carrier', carrier);
-    if (minPrice) query = query.gte('price', Number(minPrice));
-    if (maxPrice) query = query.lte('price', Number(maxPrice));
-    if (storage) query = query.eq('storage', storage);
+    // 사용자 조건 재적용
+    if (storeId) finalQuery = finalQuery.eq('store_id', storeId);
+    if (carrier) finalQuery = finalQuery.eq('carrier', carrier);
+    if (minPrice) finalQuery = finalQuery.gte('price', Number(minPrice));
+    if (maxPrice) finalQuery = finalQuery.lte('price', Number(maxPrice));
+    if (storage) finalQuery = finalQuery.eq('storage', storage);
     if (signupType) {
-      // signupType을 conditions 배열에서 검색
-      query = query.contains('conditions', [signupType]);
+      finalQuery = finalQuery.contains('conditions', [signupType]);
     }
     if (conditions) {
       const conditionArray = conditions.split(',').map(c => c.trim());
-      // conditions 배열에서 각 조건을 포함하는지 검색
       for (const condition of conditionArray) {
-        query = query.contains('conditions', [condition]);
+        finalQuery = finalQuery.contains('conditions', [condition]);
       }
     }
     if (q) {
-      // 모델명으로 device_models 테이블의 device_name 또는 model_name 검색
-      // 관계된 테이블에서는 별도의 쿼리로 처리
-      const deviceModelQuery = await supabaseServer
-        .from('device_models')
-        .select('id')
-        .or(`device_name.ilike.%${q}%,model_name.ilike.%${q}%`);
-        
-      if (deviceModelQuery.data && deviceModelQuery.data.length > 0) {
-        const deviceModelIds = deviceModelQuery.data.map(dm => dm.id);
-        query = query.in('device_model_id', deviceModelIds);
-      } else {
-        // 검색 결과가 없으면 빈 배열 반환
-        return NextResponse.json({ items: [], nextCursor: null });
-      }
+      // 1단계에서 찾은 device_model_id들로 필터링
+      const deviceModelIds = [...new Set(matchingProducts.map(p => p.device_model_id))];
+      finalQuery = finalQuery.in('device_model_id', deviceModelIds);
     }
-    if (cursor) query = query.lt('created_at', cursor);
+    if (cursor) finalQuery = finalQuery.lt('created_at', cursor);
     
-    const { data, error } = await query;
+    const { data, error } = await finalQuery;
     if (error) {
-      console.error('Store search error:', error);
+      console.error('Final query error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
     
-    // 데이터 변환 (매장 찾기에 맞는 형태로)
+    // 데이터 변환
     const transformedData = data?.map(item => {
       const { device_models, product_tables, stores, conditions, ...rest } = item;
       
@@ -151,8 +223,7 @@ export async function GET(request: NextRequest) {
           id: product_tables.id,
           name: product_tables.name,
           exposure_start_date: product_tables.exposure_start_date,
-          exposure_end_date: product_tables.exposure_end_date,
-          is_active: product_tables.is_active
+          exposure_end_date: product_tables.exposure_end_date
         },
         stores: {
           id: stores.id,

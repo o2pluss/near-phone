@@ -77,6 +77,9 @@ export default function ProductTableManagement() {
         status: statusFilter as 'all' | 'active' | 'expired'
       });
       
+      console.log('API 응답:', response);
+      console.log('받아온 테이블 데이터:', response.tables);
+      
       setProductTables(response.tables);
       setTotalCount(response.pagination.total);
       setTotalPages(response.pagination.totalPages);
@@ -161,12 +164,30 @@ export default function ProductTableManagement() {
     const startDate = new Date(table.exposureStartDate);
     const endDate = new Date(table.exposureEndDate);
     
+    console.log('상태 확인:', {
+      tableName: table.name,
+      today: today.toISOString().split('T')[0],
+      startDate: startDate.toISOString().split('T')[0],
+      endDate: endDate.toISOString().split('T')[0],
+      todayTime: today.getTime(),
+      startTime: startDate.getTime(),
+      endTime: endDate.getTime(),
+      comparison: {
+        todayVsStart: today >= startDate,
+        todayVsEnd: today <= endDate,
+        isActive: today >= startDate && today <= endDate
+      }
+    });
+    
     // 오늘이 노출기간 내에 있으면 활성
     if (today >= startDate && today <= endDate) {
+      console.log('상태: 활성');
       return { status: 'active', label: '활성', color: 'bg-green-100 text-green-800' };
     } else if (today < startDate) {
+      console.log('상태: 예정');
       return { status: 'scheduled', label: '예정', color: 'bg-blue-100 text-blue-800' };
     } else {
+      console.log('상태: 만료');
       return { status: 'expired', label: '만료', color: 'bg-gray-100 text-gray-800' };
     }
   };

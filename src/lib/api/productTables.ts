@@ -5,12 +5,11 @@ export interface ProductTable {
   name: string;
   exposureStartDate: string;
   exposureEndDate: string;
-  isActive: boolean;
   createdAt: string;
   updatedAt: string;
   productCount: number;
-  tableData?: any;
-  products?: any[];
+  tableData?: any; // 하위 호환성을 위해 유지 (UI에서만 사용)
+  products?: any[]; // API 통신용
 }
 
 export interface ProductTableListResponse {
@@ -100,18 +99,31 @@ export async function createProductTable(data: {
   name: string;
   exposureStartDate: string;
   exposureEndDate: string;
-  tableData: any;
   products: any[];
 }): Promise<{ success: boolean; data?: ProductTable; error?: string }> {
   try {
+    console.log('=== createProductTable 시작 ===');
+    console.log('요청 데이터:', data);
+    
     // 기존 auth.ts의 getCurrentSession 사용
     const { getCurrentSession } = await import('@/lib/auth');
     const session = await getCurrentSession();
     
+    console.log('세션 정보:', { hasSession: !!session, hasToken: !!session?.access_token });
+    
     if (!session?.access_token) {
+      console.error('세션이 없습니다.');
       return { success: false, error: '로그인이 필요합니다.' };
     }
 
+    console.log('API 호출 시작...');
+    console.log('현재 URL:', window.location.href);
+    console.log('요청 URL:', '/api/product-tables');
+    console.log('요청 헤더:', {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.access_token?.substring(0, 20)}...`
+    });
+    
     const response = await fetch('/api/product-tables', {
       method: 'POST',
       headers: {
@@ -120,6 +132,10 @@ export async function createProductTable(data: {
       },
       body: JSON.stringify(data),
     });
+    
+    console.log('API 호출 완료, 응답 상태:', response.status);
+
+    console.log('API 응답 상태:', response.status, response.statusText);
 
     if (!response.ok) {
       const errorData = await response.json();
@@ -139,8 +155,7 @@ export async function updateProductTable(id: string, data: {
   name: string;
   exposureStartDate: string;
   exposureEndDate: string;
-  tableData: any;
-  products?: any[];
+  products: any[];
 }): Promise<ProductTable> {
   try {
     // 현재 세션에서 토큰 가져오기

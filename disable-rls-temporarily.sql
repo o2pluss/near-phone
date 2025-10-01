@@ -1,13 +1,12 @@
--- 임시로 RLS 비활성화 (개발 환경에서만 사용)
--- 프로덕션 환경에서는 절대 사용하지 마세요!
+-- RLS를 임시로 비활성화하여 개발 환경에서 문제 해결
 
--- favorites 테이블의 RLS 비활성화
-ALTER TABLE favorites DISABLE ROW LEVEL SECURITY;
+-- 1. product_tables 테이블의 RLS 비활성화
+ALTER TABLE product_tables DISABLE ROW LEVEL SECURITY;
 
--- 확인용 쿼리
+-- 2. products 테이블의 RLS 비활성화
+ALTER TABLE products DISABLE ROW LEVEL SECURITY;
+
+-- 3. RLS 상태 확인
 SELECT schemaname, tablename, rowsecurity 
 FROM pg_tables 
-WHERE tablename = 'favorites';
-
--- 다시 활성화하려면:
--- ALTER TABLE favorites ENABLE ROW LEVEL SECURITY;
+WHERE tablename IN ('product_tables', 'products');

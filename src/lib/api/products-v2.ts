@@ -283,7 +283,6 @@ export async function searchProducts(request: ProductSearchRequest): Promise<Pro
   query = query
     .lte('product_tables.exposure_start_date', today)
     .gte('product_tables.exposure_end_date', today)
-    .eq('product_tables.is_active', true);
 
   const { data, error } = await query.order('price', { ascending: true });
 

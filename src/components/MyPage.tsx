@@ -14,11 +14,7 @@ import {
 import {
   User,
   Phone,
-  Shield,
-  HelpCircle,
-  LogOut,
   ChevronRight,
-  FileText,
   AlertTriangle,
   ArrowLeft,
 } from 'lucide-react';
@@ -65,19 +61,6 @@ export default function MyPage({ onBack, onLogout }: MyPageProps) {
 
   const menuItems = [
     {
-      icon: Shield,
-      title: '개인정보 보호',
-      description: '개인정보 처리방침',
-      action: () => console.log('개인정보 보호'),
-    },
-    {
-      icon: FileText,
-      title: '이용약관',
-      description: '서비스 이용약관',
-      action: () => console.log('이용약관'),
-    },
-    {
-      icon: HelpCircle,
       title: '고객센터',
       description: '문의 및 도움말',
       action: () => console.log('고객센터'),
@@ -115,7 +98,7 @@ export default function MyPage({ onBack, onLogout }: MyPageProps) {
                       <p className="text-blue-100 text-sm">{profile?.phone || '전화번호 없음'}</p>
                     </div>
                     {user?.email && (
-                      <p className="text-blue-200 text-xs">{user.email}</p>
+                      <p className="text-blue-200 text-xs">{profile?.login_type === 'kakao' ? '' : user.email}</p>
                     )}
                   </div>
                   <p className="text-xs text-blue-200 mt-2">
@@ -131,9 +114,6 @@ export default function MyPage({ onBack, onLogout }: MyPageProps) {
             <Card key={index} className="cursor-pointer hover:bg-gray-50 transition-colors">
               <CardContent className="p-4" onClick={item.action}>
                 <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
-                    <item.icon className="h-4 w-4 text-muted-foreground" />
-                  </div>
                   <div className="flex-1">
                     <p className="text-sm font-medium">{item.title}</p>
                     <p className="text-xs text-muted-foreground">{item.description}</p>
@@ -152,22 +132,38 @@ export default function MyPage({ onBack, onLogout }: MyPageProps) {
             className="w-full text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
             onClick={handleLogout}
           >
-            <LogOut className="h-4 w-4 mr-2" />
             로그아웃
           </Button>
         </div>
 
-        {/* 탈퇴하기 버튼 */}
-        <div className="px-4 pb-4">
-          <Dialog open={isWithdrawalDialogOpen} onOpenChange={setIsWithdrawalDialogOpen}>
-            <DialogTrigger asChild>
+        {/* 개인정보보호, 이용약관, 탈퇴하기 버튼 */}
+        <div className="px-4 py-4">
+          <div className="flex justify-between items-center">
+            <div className="flex gap-2">
               <button
-                className="w-full text-sm text-muted-foreground hover:text-red-600 underline transition-colors"
-                onClick={() => setIsWithdrawalDialogOpen(true)}
-              >
-                탈퇴하기
+                className="text-sm text-muted-foreground hover:text-gray-900 underline transition-colors"
+                onClick={() => console.log('개인정보보호')}
+                >
+                개인정보보호
               </button>
-            </DialogTrigger>
+
+              <button
+                className="text-sm text-muted-foreground hover:text-gray-900 underline transition-colors"
+                onClick={() => console.log('이용약관')}
+                >
+                이용약관
+              </button>
+            </div>
+
+            <Dialog open={isWithdrawalDialogOpen} onOpenChange={setIsWithdrawalDialogOpen}>
+              <DialogTrigger asChild>
+                <button
+                  className="text-sm text-muted-foreground hover:text-red-600 transition-colors"
+                  onClick={() => setIsWithdrawalDialogOpen(true)}
+                >
+                  탈퇴하기
+                </button>
+              </DialogTrigger>
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
                 <DialogTitle className="flex items-center space-x-2">
@@ -214,7 +210,9 @@ export default function MyPage({ onBack, onLogout }: MyPageProps) {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
+
         </div>
       </div>
       

@@ -140,7 +140,7 @@ export default function OperatingHoursEditor({ value, onChange }: OperatingHours
                       });
                     }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="w-24">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -275,7 +275,7 @@ export default function OperatingHoursEditor({ value, onChange }: OperatingHours
                       onChange(newValue);
                     }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="w-24">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -418,7 +418,7 @@ export default function OperatingHoursEditor({ value, onChange }: OperatingHours
                       onChange(newValue);
                     }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="w-24">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -562,12 +562,12 @@ export default function OperatingHoursEditor({ value, onChange }: OperatingHours
                         <Label className="text-sm font-medium">{day.label}</Label>
                       </div>
                       
-                      <div className="flex-shrink-0">
+                      <div className="w-24 flex-shrink-0">
                         <Select
                           value={dayData.isOpen ? 'open' : 'closed'}
                           onValueChange={(value) => handleDayToggle(day.key)}
                         >
-                          <SelectTrigger>
+                          <SelectTrigger className="w-24">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -583,7 +583,7 @@ export default function OperatingHoursEditor({ value, onChange }: OperatingHours
                       <>
                         {/* 시작시간 */}
                         <div className="flex items-center space-x-1 flex-shrink-0">
-                          <Label className="text-xs text-gray-600">시작</Label>
+                          <Label className="text-xs text-gray-600 w-12">시작</Label>
                           <Select
                             value={dayData.openTime?.split(':')[0] || '09'}
                             onValueChange={(hour) => {
@@ -626,7 +626,7 @@ export default function OperatingHoursEditor({ value, onChange }: OperatingHours
 
                         {/* 종료시간 */}
                         <div className="flex items-center space-x-1 flex-shrink-0">
-                          <Label className="text-xs text-gray-600">종료</Label>
+                          <Label className="text-xs text-gray-600 w-12">종료</Label>
                           <Select
                             value={dayData.closeTime?.split(':')[0] || '18'}
                             onValueChange={(hour) => {
@@ -669,6 +669,12 @@ export default function OperatingHoursEditor({ value, onChange }: OperatingHours
                       </>
                     )}
 
+                    {/* 선택한 시간 표시 */}
+                    <div className="flex items-center space-x-2 flex-shrink-0">
+                      <div className="text-sm text-gray-500 bg-gray-50 px-3 py-2 rounded-md min-w-0">
+                        {getTimeDisplay(day)}
+                      </div>
+                    </div>
 
                   </div>
                 </div>

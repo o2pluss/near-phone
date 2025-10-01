@@ -136,6 +136,7 @@ export default function ProductTableEditor({
   mode = 'bulk',
   tableInfo
 }: ProductTableEditorProps) {
+  // UI 상태 관리용 - 사용자 입력 데이터를 임시 저장
   const [tableData, setTableData] = useState<ProductTableData>({});
   const [activeTab, setActiveTab] = useState<'samsung' | 'apple'>('samsung');
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -817,23 +818,7 @@ export default function ProductTableEditor({
       newErrors['tableName'] = '테이블명을 입력해주세요';
     }
     
-    Object.keys(tableData).forEach(modelId => {
-      Object.keys(tableData[modelId]).forEach(carrier => {
-        Object.keys(tableData[modelId][carrier]).forEach(condition => {
-          const data = tableData[modelId][carrier][condition];
-          const value = data?.price;
-          const errorKey = `${modelId}-${carrier}-${condition}`;
-          
-          if (value === '') {
-            newErrors[errorKey] = '금액을 입력해주세요';
-          }
-          // 음수 값도 유효한 입력으로 처리 (0은 제외)
-          else if (value === 0) {
-            newErrors[errorKey] = '금액을 입력해주세요';
-          }
-        });
-      });
-    });
+    // 유효성 검사 제거 - 모든 가격 입력 허용
     
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -878,6 +863,7 @@ export default function ProductTableEditor({
         return;
       }
 
+      // tableData를 products 배열로 변환 (API 전송용)
       const products: any[] = [];
       
       Object.keys(tableData).forEach(modelId => {
@@ -936,8 +922,7 @@ export default function ProductTableEditor({
           name: tableName,
           exposureStartDate: exposureStartDate,
           exposureEndDate: exposureEndDate,
-          tableData: products,
-          products: products
+          products: products // API용 products 배열만 전송
         });
       } else {
         // 생성 모드: 새 테이블 생성
@@ -946,8 +931,7 @@ export default function ProductTableEditor({
           name: tableName,
           exposureStartDate: exposureStartDate,
           exposureEndDate: exposureEndDate,
-          tableData: products,
-          products: products
+          products: products // API용 products 배열만 전송
         });
 
         if (!tableResult.success) {

@@ -98,7 +98,6 @@ export async function GET(request: NextRequest) {
     query = query
       .lte('product_tables.exposure_start_date', today)
       .gte('product_tables.exposure_end_date', today)
-      .eq('product_tables.is_active', true);
 
     // 페이지네이션
     const from = (page - 1) * limit;

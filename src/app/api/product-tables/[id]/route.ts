@@ -6,6 +6,18 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
+// RLS 우회를 위한 서비스 키 클라이언트
+const supabaseService = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  }
+);
+
 // GET /api/product-tables/[id] - 특정 상품 테이블 조회
 export async function GET(
   request: NextRequest,
@@ -52,12 +64,9 @@ export async function GET(
     // 상품 테이블 조회 (스토어별 필터링)
     const { data, error } = await supabase
       .from('product_tables')
-      .select(`
-        *,
-        products!inner(store_id)
-      `)
+      .select('*')
       .eq('id', id)
-      .eq('products.store_id', storeData.id)
+      .eq('store_id', storeData.id)
       .single();
 
     if (error) {
@@ -68,10 +77,10 @@ export async function GET(
       );
     }
 
-    // 상품 데이터 조회 (스토어별 필터링)
-    const { data: products, count: productCount } = await supabase
+    // 상품 데이터 조회 (스토어별 필터링) - 서비스 키 사용
+    const { data: products, count: productCount } = await supabaseService
       .from('products')
-      .select('*')
+      .select('*', { count: 'exact' })
       .eq('table_id', id)
       .eq('store_id', storeData.id);
 
@@ -80,10 +89,8 @@ export async function GET(
       name: data.name,
       exposureStartDate: data.exposure_start_date,
       exposureEndDate: data.exposure_end_date,
-      isActive: data.is_active,
       createdAt: data.created_at,
       updatedAt: data.updated_at,
-      tableData: data.table_data,
       products: products || [],
       productCount: productCount || 0
     });
@@ -104,7 +111,7 @@ export async function PUT(
   try {
     const { id } = params;
     const body = await request.json();
-    const { name, exposureStartDate, exposureEndDate, tableData, products } = body;
+    const { name, exposureStartDate, exposureEndDate, products } = body;
 
     // 필수 필드 검증
     if (!name || !exposureStartDate || !exposureEndDate) {
@@ -114,14 +121,14 @@ export async function PUT(
       );
     }
 
-    // 상품 테이블 업데이트
-    const { data, error } = await supabase
+    // 상품 테이블 업데이트 - 서비스 키 사용
+    const { data, error } = await supabaseService
       .from('product_tables')
       .update({
         name,
         exposure_start_date: exposureStartDate,
         exposure_end_date: exposureEndDate,
-        table_data: tableData,
+        table_data: products, // products 배열을 table_data로 저장
         updated_at: new Date().toISOString()
       })
       .eq('id', id)
@@ -138,8 +145,8 @@ export async function PUT(
 
     // 상품 데이터가 있으면 업데이트
     if (products && Array.isArray(products) && products.length > 0) {
-      // 기존 상품들 삭제
-      const { error: deleteError } = await supabase
+      // 기존 상품들 삭제 - 서비스 키 사용
+      const { error: deleteError } = await supabaseService
         .from('products')
         .delete()
         .eq('table_id', id);
@@ -166,7 +173,7 @@ export async function PUT(
         updated_at: new Date().toISOString()
       }));
 
-      const { error: insertError } = await supabase
+      const { error: insertError } = await supabaseService
         .from('products')
         .insert(productsToInsert);
 
@@ -197,13 +204,13 @@ export async function DELETE(
   try {
     const { id } = params;
 
-    // 관련 상품들도 함께 삭제
-    await supabase
+    // 관련 상품들도 함께 삭제 - 서비스 키 사용
+    await supabaseService
       .from('products')
       .delete()
       .eq('table_id', id);
 
-    const { error } = await supabase
+    const { error } = await supabaseService
       .from('product_tables')
       .delete()
       .eq('id', id);

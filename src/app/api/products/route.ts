@@ -67,7 +67,6 @@ export async function GET(request: NextRequest) {
     query = query
       .lte('product_tables.exposure_start_date', today)
       .gte('product_tables.exposure_end_date', today)
-      .eq('product_tables.is_active', true);
 
     // 페이지네이션은 중복 제거 후에 적용하므로 여기서는 제거
 
