@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState, useEffect, use } from 'react';
+import { useState, useEffect } from 'react';
 import ProductTableEditor from '@/components/seller/ProductTableEditor';
 import SellerDashboardMain from '@/components/seller/SellerDashboardMain';
 import SellerPageHeader from '@/components/seller/SellerPageHeader';
@@ -16,15 +16,26 @@ interface EditProductTablePageProps {
 
 export default function EditProductTablePage({ params }: EditProductTablePageProps) {
   const router = useRouter();
-  const { id } = use(params);
+  const [id, setId] = useState<string>('');
   const [existingProducts, setExistingProducts] = useState<any[]>([]);
   const [tableInfo, setTableInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
 
+  // params에서 id 추출
+  useEffect(() => {
+    const getParams = async () => {
+      const resolvedParams = await params;
+      setId(resolvedParams.id);
+    };
+    getParams();
+  }, [params]);
+
   // 기존 상품 테이블 데이터 로드
   useEffect(() => {
     const loadProductTable = async () => {
+      if (!id) return;
+      
       try {
         setLoading(true);
         console.log('편집할 테이블 ID:', id);
@@ -65,9 +76,7 @@ export default function EditProductTablePage({ params }: EditProductTablePagePro
       }
     };
 
-    if (id) {
-      loadProductTable();
-    }
+    loadProductTable();
   }, [id]);
 
   const handleSave = (savedData: any) => {
