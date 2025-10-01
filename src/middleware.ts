@@ -156,15 +156,11 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL('/pending-approval', req.url));
   }
 
-  // 사용자 라우트 체크 (판매자는 접근 불가)
+  // 사용자 라우트 체크 (승인된 판매자도 접근 가능)
   if (userRoutes.some(route => pathname.startsWith(route))) {
-    console.log('사용자 라우트 체크:', pathname, 'Role:', role);
-    if (role !== 'user' && role !== 'admin') {
+    console.log('사용자 라우트 체크:', pathname, 'Role:', role, 'Is Active:', is_active);
+    if (role !== 'user' && role !== 'admin' && !(role === 'seller' && is_active)) {
       console.log('사용자 권한 없음, /unauthorized로 리다이렉트');
-      // 판매자가 사용자 페이지에 접근하려고 할 때는 판매자 대시보드로 리다이렉트
-      if (role === 'seller') {
-        return NextResponse.redirect(new URL('/seller', req.url));
-      }
       return NextResponse.redirect(new URL('/unauthorized', req.url));
     }
     console.log('사용자 권한 확인됨, 접근 허용');

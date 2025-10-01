@@ -44,7 +44,8 @@ export async function GET(req: NextRequest) {
           rating,
           review_count,
           latitude,
-          longitude
+          longitude,
+          hours
         )
       `);
     
@@ -79,7 +80,7 @@ export async function GET(req: NextRequest) {
         model: productSnapshot?.model || '상품 정보 없음',
         price: productSnapshot?.price || 0,
         conditions: productSnapshot?.conditions || [],
-        hours: '09:00 - 21:00', // 기본값 사용
+        hours: store.hours || '09:00 - 21:00',
         addedDate: new Date(favorite.created_at).toISOString().split('T')[0],
         productCarrier: (productSnapshot?.carrier || 'kt') as 'kt' | 'skt' | 'lgu',
         storage: productSnapshot?.storage || '256GB',

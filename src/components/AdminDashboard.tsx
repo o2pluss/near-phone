@@ -251,28 +251,25 @@ export default function AdminDashboard() {
         return;
       }
 
-      // 승인된 경우 사용자의 user_metadata 업데이트
+      // 승인된 경우 profiles 테이블의 is_active를 true로 업데이트
       if (approve) {
         try {
-          // Supabase Admin API를 사용하여 사용자 메타데이터 업데이트
-          const { error: updateError } = await supabase.auth.admin.updateUserById(
-            application.user_id,
-            {
-              user_metadata: {
-                role: 'seller',
-                name: application.contact_email.split('@')[0] || '판매자'
-              }
-            }
-          );
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .update({
+              is_active: true,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('user_id', application.user_id);
 
-          if (updateError) {
-            console.error('사용자 메타데이터 업데이트 실패:', updateError);
-            // 메타데이터 업데이트 실패해도 승인은 완료된 것으로 처리
+          if (profileError) {
+            console.error('프로필 활성화 실패:', profileError);
+            // 프로필 업데이트 실패해도 승인은 완료된 것으로 처리
           } else {
-            console.log('사용자 메타데이터 업데이트 완료');
+            console.log('프로필 활성화 완료');
           }
-        } catch (updateError) {
-          console.error('사용자 메타데이터 업데이트 중 오류:', updateError);
+        } catch (profileError) {
+          console.error('프로필 활성화 중 오류:', profileError);
         }
       }
 

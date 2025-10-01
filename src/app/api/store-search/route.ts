@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseServer } from '@/lib/supabaseServer';
 import { CARRIER_CODES, STORAGE_CODES } from '@/lib/constants/codes';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 // carrier 값 정규화 함수 (소문자 -> 대문자)
 function normalizeCarrier(carrier: string | null): string | null {
@@ -54,7 +49,7 @@ export async function GET(request: NextRequest) {
     // 현재 날짜 (YYYY-MM-DD 형식)
     const today = new Date().toISOString().split('T')[0];
     
-    let query = supabase
+    let query = supabaseServer
       .from('products')
       .select(`
         *,
@@ -78,7 +73,8 @@ export async function GET(request: NextRequest) {
           address,
           phone,
           rating,
-          review_count
+          review_count,
+          hours
         )
       `)
       .eq('is_active', true)
@@ -108,7 +104,7 @@ export async function GET(request: NextRequest) {
     if (q) {
       // 모델명으로 device_models 테이블의 device_name 또는 model_name 검색
       // 관계된 테이블에서는 별도의 쿼리로 처리
-      const deviceModelQuery = await supabase
+      const deviceModelQuery = await supabaseServer
         .from('device_models')
         .select('id')
         .or(`device_name.ilike.%${q}%,model_name.ilike.%${q}%`);
@@ -165,7 +161,7 @@ export async function GET(request: NextRequest) {
           phone: stores.phone,
           rating: stores.rating,
           review_count: stores.review_count,
-          hours: '09:00 - 21:00' // 기본값 사용
+          hours: stores.hours || '09:00 - 21:00'
         }
       };
     }) ?? [];

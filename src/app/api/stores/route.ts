@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabaseClient';
+import { supabaseServer } from '@/lib/supabaseServer';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -10,11 +10,11 @@ export async function GET(req: NextRequest) {
   const cursor = searchParams.get('cursor');
   const limit = Number(searchParams.get('limit') ?? '15');
 
-  let query = supabase.from('stores').select('*').order('created_at', { ascending: false }).limit(limit);
+  let query = supabaseServer.from('stores').select('*').order('created_at', { ascending: false }).limit(limit);
   
   // 단일 ID 처리
   if (id) {
-    const { data, error } = await supabase.from('stores').select('*').eq('id', id).single();
+    const { data, error } = await supabaseServer.from('stores').select('*').eq('id', id).single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json(data ?? null);
   }
@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
   // 여러 ID 처리
   if (ids) {
     const idArray = ids.split(',').filter(Boolean);
-    const { data, error } = await supabase.from('stores').select('*').in('id', idArray);
+    const { data, error } = await supabaseServer.from('stores').select('*').in('id', idArray);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ items: data ?? [] });
   }
