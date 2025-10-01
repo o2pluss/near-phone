@@ -47,8 +47,8 @@ export default function KakaoLoginButton({
       }
     };
 
-    // 약간의 지연을 두고 초기화 (전역 스크립트 로드 완료 대기)
-    setTimeout(initializeKakao, 1000);
+    // 즉시 초기화 시도
+    initializeKakao();
   }, []);
 
   const handleKakaoLogin = async () => {
