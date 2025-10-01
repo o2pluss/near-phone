@@ -184,7 +184,7 @@ export async function GET(request: NextRequest) {
         finalQuery = finalQuery.contains('conditions', [condition]);
       }
     }
-    if (q) {
+    if (model) {
       // 1단계에서 찾은 device_model_id들로 필터링
       const deviceModelIds = [...new Set(matchingProducts.map(p => p.device_model_id))];
       finalQuery = finalQuery.in('device_model_id', deviceModelIds);
