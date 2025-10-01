@@ -78,8 +78,7 @@ export async function GET(request: NextRequest) {
           address,
           phone,
           rating,
-          review_count,
-          hours
+          review_count
         )
       `)
       .eq('is_active', true)
@@ -166,7 +165,7 @@ export async function GET(request: NextRequest) {
           phone: stores.phone,
           rating: stores.rating,
           review_count: stores.review_count,
-          hours: stores.hours
+          hours: '09:00 - 21:00' // 기본값 사용
         }
       };
     }) ?? [];
