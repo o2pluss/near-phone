@@ -120,16 +120,30 @@ export default function ProductTableManagement() {
   const handleDeleteTable = async (tableId: string) => {
     try {
       await deleteProductTable(tableId);
-      // 삭제 후 목록 새로고침
-      const response = await getProductTables({
-        page: currentPage,
-        limit: itemsPerPage,
-        search: searchQuery,
-        status: statusFilter as 'all' | 'active' | 'expired'
-      });
-      setProductTables(response.tables);
-      setTotalCount(response.pagination.total);
-      setTotalPages(response.pagination.totalPages);
+      
+      // 즉시 로컬 상태에서 삭제된 항목 제거
+      setProductTables(prevTables => prevTables.filter(table => table.id !== tableId));
+      setTotalCount(prevCount => Math.max(0, prevCount - 1));
+      
+      // 현재 페이지에 항목이 없고 이전 페이지가 있다면 이전 페이지로 이동
+      const remainingItems = productTables.length - 1;
+      if (remainingItems === 0 && currentPage > 1) {
+        const newPage = currentPage - 1;
+        setCurrentPage(newPage);
+        // 이전 페이지 데이터 로드
+        const response = await getProductTables({
+          page: newPage,
+          limit: itemsPerPage,
+          search: searchQuery,
+          status: statusFilter as 'all' | 'active' | 'expired'
+        });
+        setProductTables(response.tables);
+        setTotalCount(response.pagination.total);
+        setTotalPages(response.pagination.totalPages);
+      } else {
+        // 현재 페이지에 항목이 남아있으면 페이지 수만 업데이트
+        setTotalPages(Math.ceil((totalCount - 1) / itemsPerPage));
+      }
     } catch (err) {
       console.error('테이블 삭제 실패:', err);
       setError('테이블 삭제에 실패했습니다.');

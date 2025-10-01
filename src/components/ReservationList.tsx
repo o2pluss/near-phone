@@ -33,7 +33,6 @@ export default function ReservationList({
     hasNextPage, 
     isFetchingNextPage 
   } = useReservationList({
-    userId: '00000000-0000-0000-0000-000000000001',
     limit: 15, // 기본 페이지 크기
     startDate: appliedStartDate,
     endDate: appliedEndDate

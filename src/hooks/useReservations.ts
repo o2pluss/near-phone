@@ -123,28 +123,61 @@ const fetchStoreReservations = async (storeId: string): Promise<Reservation[]> =
 };
 
 const createReservation = async (data: CreateReservationData): Promise<Reservation> => {
-  await new Promise(resolve => setTimeout(resolve, 1000));
+  // 인증 헤더 가져오기
+  const { getAuthHeaders } = await import('@/lib/auth');
+  const authHeaders = await getAuthHeaders();
   
-  // Mock creating a reservation
-  const newReservation: Reservation = {
-    id: Date.now().toString(),
-    storeId: data.storeId,
-    storeName: '강남 휴대폰 매장', // This would come from store data
-    storeAddress: '서울시 강남구 역삼동 123-45',
-    storePhone: '02-1234-5678',
-    userId: 'current-user-id',
-    customerName: data.name,
-    customerPhone: data.phone,
-    date: data.date,
-    time: data.time,
+  const response = await fetch('/api/reservations', {
+    method: 'POST',
+    headers: authHeaders,
+    body: JSON.stringify({
+      store_id: data.storeId,
+      product_id: null, // 유효한 UUID가 없으면 null
+      store_product_id: null, // 유효한 UUID가 없으면 null
+      reservation_date: data.date,
+      reservation_time: data.time,
+      customer_name: data.name,
+      customer_phone: data.phone,
+      memo: '',
+      product_snapshot: {
+        model: data.model,
+        price: data.price,
+        conditions: ['번호이동', '카드할인']
+      }
+    }),
+  });
+  
+  if (!response.ok) {
+    const errorData = await response.json();
+    
+    // 인증 오류 처리
+    if (response.status === 401) {
+      throw new Error('로그인이 필요합니다. 로그인 후 다시 시도해주세요.');
+    }
+    
+    throw new Error(errorData.message || 'Failed to create reservation');
+  }
+  
+  const newReservation = await response.json();
+  
+  // API 응답을 Reservation 타입으로 변환
+  return {
+    id: newReservation.id,
+    storeId: newReservation.store_id,
+    storeName: newReservation.stores?.name || '알 수 없는 매장',
+    storeAddress: newReservation.stores?.address || '',
+    storePhone: newReservation.stores?.phone || '',
+    userId: newReservation.user_id,
+    customerName: newReservation.customer_name,
+    customerPhone: newReservation.customer_phone,
+    date: newReservation.reservation_date,
+    time: newReservation.reservation_time,
     model: data.model,
     price: data.price,
-    status: 'pending',
-    createdAt: new Date().toISOString(),
+    status: newReservation.status,
+    createdAt: newReservation.created_at,
     conditions: ['번호이동', '카드할인']
   };
-  
-  return newReservation;
 };
 
 const updateReservationStatus = async (reservationId: string, status: Reservation['status']): Promise<Reservation> => {

@@ -151,12 +151,25 @@ export function useReviews(
 export function useCreateReservation() {
   return useMutation({
     mutationFn: async (payload: any) => {
+      // 인증 헤더 가져오기
+      const { getAuthHeaders } = await import('@/lib/auth');
+      const authHeaders = await getAuthHeaders();
+      
       const res = await fetch('/api/reservations', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders,
         body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error('Failed to create reservation');
+      if (!res.ok) {
+        const errorData = await res.json();
+        
+        // 인증 오류 처리
+        if (res.status === 401) {
+          throw new Error('로그인이 필요합니다. 로그인 후 다시 시도해주세요.');
+        }
+        
+        throw new Error(errorData.message || 'Failed to create reservation');
+      }
       return res.json();
     },
   });

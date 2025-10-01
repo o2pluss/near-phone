@@ -114,6 +114,10 @@ const generateTimeSlots = (date: string, businessHours?: StoreInfo['businessHour
   const slots = [];
   const selectedDate = new Date(date);
   const dayOfWeek = selectedDate.getDay();
+  const today = new Date();
+  
+  // 오늘 날짜인지 확인
+  const isToday = selectedDate.toDateString() === today.toDateString();
   
   // 기본 영업시간 (매장 데이터가 없을 경우)
   let startHour = 9;
@@ -137,11 +141,38 @@ const generateTimeSlots = (date: string, businessHours?: StoreInfo['businessHour
     }
   }
   
+  // 오늘 날짜인 경우 현재 시간 이후만 선택 가능하도록 조정
+  if (isToday) {
+    const currentHour = today.getHours();
+    const currentMinute = today.getMinutes();
+    
+    // 현재 시간의 다음 30분 단위로 올림
+    let nextAvailableHour = currentHour;
+    let nextAvailableMinute = currentMinute < 30 ? 30 : 0;
+    
+    // 30분이 넘으면 다음 시간으로
+    if (nextAvailableMinute === 0) {
+      nextAvailableHour += 1;
+    }
+    
+    // 최소 시작 시간을 현재 시간의 다음 30분 단위로 설정
+    startHour = Math.max(startHour, nextAvailableHour);
+  }
+  
   // 30분 단위로 시간 슬롯 생성
   for (let hour = startHour; hour < endHour; hour++) {
-    slots.push(`${hour.toString().padStart(2, '0')}:00`);
-    if (hour < endHour - 1) {
-      slots.push(`${hour.toString().padStart(2, '0')}:30`);
+    // 오늘 날짜이고 현재 시간과 같은 시간대인 경우
+    if (isToday && hour === startHour) {
+      // 30분 단위로만 추가 (00분은 제외)
+      if (startHour < endHour - 1) {
+        slots.push(`${hour.toString().padStart(2, '0')}:30`);
+      }
+    } else {
+      // 일반적인 경우: 00분과 30분 모두 추가
+      slots.push(`${hour.toString().padStart(2, '0')}:00`);
+      if (hour < endHour - 1) {
+        slots.push(`${hour.toString().padStart(2, '0')}:30`);
+      }
     }
   }
   
@@ -210,23 +241,26 @@ export default function ReservationModal({
   const onReservationSubmit = async (data: ReservationFormData) => {
     setIsSubmitting(true);
     try {
+      // 인증 헤더 가져오기
+      const { getAuthHeaders } = await import('@/lib/auth');
+      const authHeaders = await getAuthHeaders();
+      
       const response = await fetch("/api/reservations", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: authHeaders,
         body: JSON.stringify({
-          user_id: '00000000-0000-0000-0000-000000000001', // 실제로는 인증된 사용자 ID 사용
           store_id: store.id,
-          product_id: firstProduct?.products?.id || "product-1", // 실제 상품 ID
-          store_product_id: firstProduct?.id, // 매장 상품 ID
+          // product_id는 유효한 UUID가 있을 때만 전달, 없으면 null
+          product_id: firstProduct?.products?.id || null,
+          // store_product_id도 유효한 UUID가 있을 때만 전달
+          store_product_id: firstProduct?.id || null,
           reservation_date: data.date,
           reservation_time: data.time,
           customer_name: data.name,
           customer_phone: removeMobileNumberFormat(data.phone),
           memo: '',
           product_snapshot: {
-            id: firstProduct?.products?.id || "product-1",
+            id: firstProduct?.products?.id || null,
             name: firstProduct?.products?.name || store.model,
             model: firstProduct?.products?.name || store.model,
             storage: firstProduct?.storage || '256gb',
@@ -248,6 +282,20 @@ export default function ReservationModal({
 
       if (!response.ok) {
         const errorData = await response.json();
+        
+        // 인증 오류 처리
+        if (response.status === 401) {
+          alert('로그인이 필요합니다. 로그인 후 다시 시도해주세요.');
+          // 로그인 페이지로 리다이렉트
+          window.location.href = '/auth/login';
+          return;
+        }
+        
+        // 과거 시간 예약 에러 처리
+        if (response.status === 400 && errorData.error === 'PAST_TIME') {
+          alert(errorData.message);
+          return;
+        }
         
         // 중복 예약 에러 처리
         if (response.status === 409 && errorData.error === 'DUPLICATE_RESERVATION') {
@@ -354,15 +402,43 @@ export default function ReservationModal({
                       {availableTimeSlots.length > 0 ? (
                         availableTimeSlots.map((time) => {
                           const isBooked = bookedTimeSlots.includes(time);
+                          
+                          // 오늘 날짜인 경우 현재 시간과 비교
+                          const isToday = selectedDate && new Date(selectedDate).toDateString() === new Date().toDateString();
+                          let isPastTime = false;
+                          
+                          if (isToday) {
+                            const [timeHour, timeMinute] = time.split(':').map(Number);
+                            const now = new Date();
+                            const currentHour = now.getHours();
+                            const currentMinute = now.getMinutes();
+                            
+                            // 현재 시간보다 이전인지 확인
+                            isPastTime = timeHour < currentHour || 
+                                        (timeHour === currentHour && timeMinute <= currentMinute);
+                          }
+                          
+                          const isDisabled = isBooked || isPastTime;
+                          
                           return (
                             <SelectItem 
                               key={time} 
                               value={time}
-                              disabled={isBooked}
-                              className={isBooked ? "text-muted-foreground opacity-50" : ""}
+                              disabled={isDisabled}
+                              className={isDisabled ? "text-muted-foreground opacity-50" : ""}
                             >
                               <div className="flex items-center justify-between w-full">
                                 <span>{time}</span>
+                                {isPastTime && (
+                                  <span className="text-xs text-muted-foreground ml-2">
+                                    (지난 시간)
+                                  </span>
+                                )}
+                                {isBooked && (
+                                  <span className="text-xs text-muted-foreground ml-2">
+                                    (예약됨)
+                                  </span>
+                                )}
                               </div>
                             </SelectItem>
                           );

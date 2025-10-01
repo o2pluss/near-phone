@@ -17,6 +17,7 @@ import {
   ChevronRight,
   AlertTriangle,
   ArrowLeft,
+  Loader2,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useRouter } from 'next/navigation';
@@ -31,6 +32,7 @@ export default function MyPage({ onBack, onLogout }: MyPageProps) {
   const router = useRouter();
   const [isWithdrawalDialogOpen, setIsWithdrawalDialogOpen] = useState(false);
   const [isWithdrawalConfirmed, setIsWithdrawalConfirmed] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const handleWithdrawal = () => {
     if (isWithdrawalConfirmed) {
@@ -48,14 +50,33 @@ export default function MyPage({ onBack, onLogout }: MyPageProps) {
   };
 
   const handleLogout = async () => {
-    try {
-      // Supabase Auth에서 로그아웃
-      await signOut();
+    // 이미 로그아웃 중이면 중복 실행 방지
+    if (isLoggingOut) {
+      return;
+    }
 
+    try {
+      setIsLoggingOut(true);
+      console.log('로그아웃 시작...');
+
+      // Supabase Auth에서 로그아웃
+      const { error } = await signOut();
+      
+      if (error) {
+        console.error('로그아웃 실패:', error);
+        alert('로그아웃 중 오류가 발생했습니다. 다시 시도해주세요.');
+        return;
+      }
+
+      console.log('로그아웃 성공, 페이지 이동 중...');
+      
       // 로그인 페이지로 이동
       router.push('/');
     } catch (error) {
       console.error('로그아웃 중 오류 발생:', error);
+      alert('로그아웃 중 오류가 발생했습니다. 다시 시도해주세요.');
+    } finally {
+      setIsLoggingOut(false);
     }
   };
 
@@ -129,10 +150,18 @@ export default function MyPage({ onBack, onLogout }: MyPageProps) {
         <div className="p-4">
           <Button
             variant="outline"
-            className="w-full text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
+            className="w-full text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300 disabled:opacity-50 disabled:cursor-not-allowed"
             onClick={handleLogout}
+            disabled={isLoggingOut}
           >
-            로그아웃
+            {isLoggingOut ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                로그아웃 중...
+              </>
+            ) : (
+              '로그아웃'
+            )}
           </Button>
         </div>
 

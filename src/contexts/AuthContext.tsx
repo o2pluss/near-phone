@@ -462,9 +462,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     try {
+      console.log('AuthContext: 로그아웃 시작');
+      
+      // 카카오 로그인 사용자인 경우 카카오 로그아웃도 함께 처리
+      if (profile?.login_type === 'kakao') {
+        try {
+          const { logoutWithKakao } = await import('@/lib/kakao');
+          logoutWithKakao();
+          console.log('카카오 로그아웃 완료');
+        } catch (kakaoError) {
+          console.warn('카카오 로그아웃 중 오류 (무시됨):', kakaoError);
+        }
+      }
+
       const { error } = await supabase.auth.signOut();
-      return { error };
+      
+      if (error) {
+        console.error('Supabase 로그아웃 실패:', error);
+        return { error };
+      }
+
+      console.log('AuthContext: 로그아웃 성공');
+      
+      // 로컬 상태 정리
+      setUser(null);
+      setProfile(null);
+      setSession(null);
+      
+      return { error: null };
     } catch (error) {
+      console.error('AuthContext: 로그아웃 중 예외 발생:', error);
       return { error: error as AuthError };
     }
   };

@@ -196,7 +196,9 @@ export const config = {
      * - public folder
      * - api routes
      * - src folder (source files)
+     * - fonts folder
+     * - well-known folder
      */
-    '/((?!_next/static|_next/image|favicon.ico|api|src|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api|src|fonts|.well-known|.*\\.(?:svg|png|jpg|jpeg|gif|webp|woff|woff2|css|js)$).*)',
   ],
 };

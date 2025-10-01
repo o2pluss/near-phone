@@ -1,7 +1,6 @@
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface ReservationListParams {
-  userId?: string;
   storeId?: string;
   status?: string;
   startDate?: string;
@@ -14,7 +13,6 @@ interface ReservationListParams {
 export const useReservationList = (params: ReservationListParams = {}) => {
   return useInfiniteQuery({
     queryKey: ['reservations', {
-      userId: params.userId,
       storeId: params.storeId,
       status: params.status,
       startDate: params.startDate || null,
@@ -23,9 +21,13 @@ export const useReservationList = (params: ReservationListParams = {}) => {
       limit: params.limit
     }],
     queryFn: async ({ pageParam }) => {
+      // 인증 헤더 가져오기
+      const { getAuthHeaders } = await import('@/lib/auth');
+      const authHeaders = await getAuthHeaders();
+      
       const searchParams = new URLSearchParams();
       
-      if (params.userId) searchParams.append('userId', params.userId);
+      // userId는 더 이상 필요하지 않음 (서버에서 인증된 사용자 ID 사용)
       if (params.storeId) searchParams.append('storeId', params.storeId);
       if (params.status) searchParams.append('status', params.status);
       if (params.startDate) searchParams.append('startDate', params.startDate);
@@ -34,9 +36,12 @@ export const useReservationList = (params: ReservationListParams = {}) => {
       if (params.limit) searchParams.append('limit', params.limit.toString());
       if (pageParam) searchParams.append('cursor', pageParam);
       
-      const response = await fetch(`/api/reservations?${searchParams.toString()}`);
+      const response = await fetch(`/api/reservations?${searchParams.toString()}`, {
+        headers: authHeaders
+      });
       if (!response.ok) {
-        throw new Error('예약 목록을 불러올 수 없습니다.');
+        const errorData = await response.json();
+        throw new Error(errorData.message || '예약 목록을 불러올 수 없습니다.');
       }
       const data = await response.json();
       return data;
