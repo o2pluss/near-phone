@@ -196,34 +196,57 @@ export async function PUT(
   }
 }
 
-// DELETE /api/product-tables/[id] - 상품 테이블 삭제
+// DELETE /api/product-tables/[id] - 상품 테이블 소프트 삭제
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
     const { id } = params;
+    const body = await request.json().catch(() => ({}));
+    const { deletionReason = 'product_table_deleted' } = body;
 
-    // 관련 상품들도 함께 삭제 - 서비스 키 사용
-    await supabaseService
+    // 관련 상품들을 소프트 삭제 - 서비스 키 사용
+    const { error: productsError } = await supabaseService
       .from('products')
-      .delete()
+      .update({
+        is_active: false,
+        deleted_at: new Date().toISOString(),
+        deletion_reason: 'parent_table_deleted'
+      })
       .eq('table_id', id);
 
+    if (productsError) {
+      console.error('관련 상품 소프트 삭제 실패:', productsError);
+      return NextResponse.json(
+        { error: '관련 상품 삭제에 실패했습니다.' },
+        { status: 500 }
+      );
+    }
+
+    // 상품 테이블을 소프트 삭제 - 서비스 키 사용
     const { error } = await supabaseService
       .from('product_tables')
-      .delete()
+      .update({
+        is_active: false,
+        deleted_at: new Date().toISOString(),
+        deletion_reason: deletionReason
+      })
       .eq('id', id);
 
     if (error) {
-      console.error('상품 테이블 삭제 실패:', error);
+      console.error('상품 테이블 소프트 삭제 실패:', error);
       return NextResponse.json(
         { error: '상품 테이블 삭제에 실패했습니다.' },
         { status: 500 }
       );
     }
 
-    return NextResponse.json({ message: '상품 테이블이 삭제되었습니다.' });
+    return NextResponse.json({ 
+      message: '상품 테이블이 삭제되었습니다.',
+      deletedAt: new Date().toISOString(),
+      canRestore: true
+    });
   } catch (error) {
     console.error('API 오류:', error);
     return NextResponse.json(

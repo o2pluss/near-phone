@@ -5,7 +5,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const id = searchParams.get('id');
   const ids = searchParams.get('ids'); // 여러 ID 처리
-  const q = searchParams.get('q')?.trim();
+  const model = searchParams.get('model')?.trim();
   const sortBy = searchParams.get('sortBy') || 'created_at.desc';
   const cursor = searchParams.get('cursor');
   const limit = Number(searchParams.get('limit') ?? '15');
@@ -26,9 +26,9 @@ export async function GET(req: NextRequest) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ items: data ?? [] });
   }
-  if (q) {
+  if (model) {
     // 간단 검색: name, address like
-    query = query.ilike('name', `%${q}%`);
+    query = query.ilike('name', `%${model}%`);
   }
   if (sortBy) {
     const [col, dir] = sortBy.split('.') as [string, 'asc' | 'desc'];

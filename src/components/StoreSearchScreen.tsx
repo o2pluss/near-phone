@@ -177,7 +177,7 @@ export default function StoreSearchScreen({
   
   // 매장 검색 파라미터 (모달 밖 필터)
   const storeSearchParams = {
-    q: selectedModel || undefined,
+    model: selectedModel || undefined,
     sortBy: sortBy === "거리순" ? "created_at.desc" : "name.asc"
   };
   
@@ -189,7 +189,7 @@ export default function StoreSearchScreen({
     storage: selectedStorage || undefined,
     signupType: appliedFilters.signupType?.[0] || undefined,
     conditions: appliedFilters.conditions?.join(',') || undefined,
-    q: selectedModel || undefined, // 모델명 검색 추가
+    model: selectedModel || undefined, // 모델명 검색 추가
   } : undefined;
   
   // 상품 검색만 사용하고, 매장 검색은 비활성화

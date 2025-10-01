@@ -37,6 +37,7 @@ export async function GET(
       `)
       .eq('id', params.id)
       .eq('is_active', true)
+      .is('deleted_at', null)
       .single();
 
     if (error) {

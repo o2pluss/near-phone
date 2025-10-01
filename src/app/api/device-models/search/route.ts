@@ -5,9 +5,9 @@ import { supabase } from '@/lib/supabaseClient';
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const query = searchParams.get('q');
+    const model = searchParams.get('model');
 
-    if (!query) {
+    if (!model) {
       return NextResponse.json(
         { error: '검색어가 필요합니다.' },
         { status: 400 }
@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     const { data, error } = await supabase
       .from('device_models')
       .select('*')
-      .or(`model.ilike.%${query}%,manufacturer.ilike.%${query}%`)
+      .or(`model.ilike.%${model}%,manufacturer.ilike.%${model}%`)
       .order('created_at', { ascending: false });
 
     if (error) {

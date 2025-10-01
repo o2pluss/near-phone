@@ -46,6 +46,7 @@ export async function GET(request: NextRequest) {
         )
       `)
       .eq('is_active', true)
+      .is('deleted_at', null)
       .order('created_at', { ascending: false });
 
     // 필터링 조건 적용

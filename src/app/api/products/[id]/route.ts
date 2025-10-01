@@ -241,20 +241,32 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    const body = await request.json().catch(() => ({}));
+    const { deletionReason = 'product_deleted' } = body;
+
     const { error } = await supabase
       .from('products')
-      .delete()
+      .update({
+        is_active: false,
+        deleted_at: new Date().toISOString(),
+        deletion_reason: deletionReason
+      })
       .eq('id', params.id);
 
     if (error) {
-      console.error('상품 삭제 실패:', error);
+      console.error('상품 소프트 삭제 실패:', error);
       return NextResponse.json(
         { error: '상품 삭제에 실패했습니다.' },
         { status: 500 }
       );
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ 
+      success: true,
+      message: '상품이 삭제되었습니다.',
+      deletedAt: new Date().toISOString(),
+      canRestore: true
+    });
   } catch (error) {
     console.error('API 오류:', error);
     return NextResponse.json(

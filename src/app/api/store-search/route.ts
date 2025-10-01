@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
     const storage = normalizeStorage(searchParams.get('storage')); // 128gb | 256gb | 512gb | 1tb -> 128GB | 256GB | 512GB | 1TB
     const signupType = searchParams.get('signupType'); // 번호이동 | 신규가입 | 기기변경
     const conditions = searchParams.get('conditions'); // comma-separated conditions
-    const q = searchParams.get('q'); // 모델명 검색
+    const model = searchParams.get('model'); // 모델명 검색
     const cursor = searchParams.get('cursor');
     const limit = Number(searchParams.get('limit') ?? '15');
 
@@ -72,11 +72,11 @@ export async function GET(request: NextRequest) {
     }
     
     // 모델명 검색 처리
-    if (q) {
+    if (model) {
       const deviceModelQuery = await supabaseServer
         .from('device_models')
         .select('id')
-        .or(`device_name.ilike.%${q}%,model_name.ilike.%${q}%`);
+        .or(`device_name.ilike.%${model}%,model_name.ilike.%${model}%`);
         
       if (deviceModelQuery.data && deviceModelQuery.data.length > 0) {
         const deviceModelIds = deviceModelQuery.data.map(dm => dm.id);

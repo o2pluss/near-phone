@@ -154,6 +154,7 @@ export default function ProductTableEditor({
   const [selectedCombinations, setSelectedCombinations] = useState<string[]>([]);
   const [showModelModal, setShowModelModal] = useState(false);
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
+  const [copyPositions, setCopyPositions] = useState<Record<string, { insertAfter: string }>>({});
   const [exposureStartDate, setExposureStartDate] = useState<string>(() => {
     const today = new Date();
     return today.toISOString().split('T')[0];
@@ -712,6 +713,19 @@ export default function ProductTableEditor({
       });
     });
 
+    // 복사본의 위치 정보를 별도 상태에 저장
+    setCopyPositions(prev => ({
+      ...prev,
+      [newModelId]: {
+        insertAfter: modelId // 현재 선택된 행 바로 아래에 삽입
+      }
+    }));
+
+    console.log('=== copyRow 실행 ===');
+    console.log('복사할 모델 ID:', modelId);
+    console.log('새로운 모델 ID:', newModelId);
+    console.log('insertAfter:', modelId);
+
     setTableData(prev => ({
       ...prev,
       ...copiedData
@@ -728,9 +742,24 @@ export default function ProductTableEditor({
       return newData;
     });
     
-    // selectedCombinations에서도 해당 모델 제거
+    // copyPositions에서도 해당 행 삭제
+    setCopyPositions(prev => {
+      const newPositions = { ...prev };
+      delete newPositions[modelId];
+      return newPositions;
+    });
+    
+    // selectedCombinations에서도 해당 모델 제거 (복사본인 경우 원본 ID로 변환하여 제거)
     setSelectedCombinations(prev => {
-      const newCombinations = prev.filter(combo => combo !== modelId);
+      const originalModelId = modelId.replace(/-copy-\d+$/, '');
+      const newCombinations = prev.filter(combo => {
+        // 복사본인 경우 원본 ID와 비교하여 제거
+        if (modelId.includes('-copy-')) {
+          return combo !== originalModelId;
+        }
+        // 원본인 경우 직접 비교하여 제거
+        return combo !== modelId;
+      });
       console.log('Updated selectedCombinations after single delete:', newCombinations);
       return newCombinations;
     });
@@ -786,11 +815,19 @@ export default function ProductTableEditor({
       return newData;
     });
     
-    // selectedCombinations에서도 해당 모델들 제거
+    // selectedCombinations에서도 해당 모델들 제거 (복사본인 경우 원본 ID로 변환하여 제거)
     setSelectedCombinations(prev => {
       const newCombinations = prev.filter(combo => {
         // 선택된 행들 중에서 해당 조합이 포함되지 않은 것만 유지
-        return !Array.from(selectedRows).some(modelId => combo === modelId);
+        return !Array.from(selectedRows).some(modelId => {
+          const originalModelId = modelId.replace(/-copy-\d+$/, '');
+          // 복사본인 경우 원본 ID와 비교
+          if (modelId.includes('-copy-')) {
+            return combo === originalModelId;
+          }
+          // 원본인 경우 직접 비교
+          return combo === modelId;
+        });
       });
       console.log('Updated selectedCombinations:', newCombinations);
       return newCombinations;
@@ -980,7 +1017,19 @@ export default function ProductTableEditor({
     allModels.push(model);
   });
   
-  // 복사본들을 allModels에 추가
+  // 복사본들을 allModels에 추가 (원본 모델 바로 아래에 삽입)
+  const copiedModels: Array<{
+    id: string;
+    name: string;
+    storage: StorageCode;
+    brand: 'samsung' | 'apple';
+    manufacturer: string;
+    deviceModelId: string;
+    originalId?: string;
+    timestamp?: number;
+    insertAfter?: string; // 바로 앞에 위치해야 할 모델 ID
+  }> = [];
+  
   Object.keys(tableData || {}).forEach(modelId => {
     if (modelId.includes('-copy-')) {
       // 원본 모델 찾기
@@ -994,15 +1043,149 @@ export default function ProductTableEditor({
         deviceModelId: string;
       };
       if (model) {
-        allModels.push({
+        // 위치 정보 확인 (copyPositions 상태에서 읽기)
+        const positionInfo = copyPositions[modelId];
+        const insertAfter = positionInfo?.insertAfter || originalModelId;
+        
+        copiedModels.push({
           ...model,
           id: modelId,
           originalId: originalModelId,
-          timestamp: parseInt(modelId.split('-copy-')[1]) || 0
+          timestamp: parseInt(modelId.split('-copy-')[1]) || 0,
+          insertAfter: insertAfter // 저장된 위치 정보 사용
         });
       }
     }
   });
+  
+  // 완전히 새로운 접근법: tableData의 _position 정보를 직접 사용
+  const finalModels: typeof allModels = [];
+  const processedIds = new Set<string>();
+  
+  // 원본 모델들을 먼저 추가
+  filteredModels.forEach(model => {
+    finalModels.push({
+      id: model.id,
+      name: model.name,
+      storage: model.storage,
+      brand: model.brand,
+      manufacturer: model.manufacturer,
+      deviceModelId: model.deviceModelId
+    });
+    processedIds.add(model.id);
+  });
+  
+  // 복사본들을 insertAfter 정보에 따라 올바른 위치에 삽입
+  const insertCopyAtPosition = (copyId: string) => {
+    if (processedIds.has(copyId)) return;
+    
+    const copy = copiedModels.find(c => c.id === copyId);
+    if (!copy) return;
+    
+    // insertAfter 모델의 위치를 찾기
+    const insertAfterIndex = finalModels.findIndex(m => m.id === copy.insertAfter);
+    if (insertAfterIndex === -1) return;
+    
+    // insertAfter 모델 바로 다음에 삽입
+    const insertIndex = insertAfterIndex + 1;
+    
+    finalModels.splice(insertIndex, 0, {
+      id: copy.id,
+      name: copy.name,
+      storage: copy.storage,
+      brand: copy.brand,
+      manufacturer: copy.manufacturer,
+      deviceModelId: copy.deviceModelId,
+      originalId: copy.originalId,
+      timestamp: copy.timestamp
+    });
+    
+    processedIds.add(copyId);
+    
+    // 이 복사본의 하위 복사본들도 처리
+    const subCopies = copiedModels
+      .filter(subCopy => subCopy.insertAfter === copyId)
+      .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+    
+    subCopies.forEach(subCopy => {
+      insertCopyAtPosition(subCopy.id);
+    });
+  };
+  
+  // 모든 복사본들을 처리
+  copiedModels
+    .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0))
+    .forEach(copy => {
+      insertCopyAtPosition(copy.id);
+    });
+  
+  // 디버깅을 위한 로그
+  console.log('=== copyRow 디버깅 ===');
+  console.log('copiedModels:', copiedModels.map(c => ({ id: c.id, insertAfter: c.insertAfter, timestamp: c.timestamp })));
+  console.log('finalModels:', finalModels.map(m => ({ id: m.id })));
+  
+  // allModels를 finalModels로 교체
+  allModels.length = 0;
+  allModels.push(...finalModels);
+
+  // 전체 모델(삼성+애플)을 기반으로 개수 계산
+  const getAllModelsWithCopies = () => {
+    const allModelsWithCopies: Array<{
+      id: string;
+      name: string;
+      storage: StorageCode;
+      brand: 'samsung' | 'apple';
+      manufacturer: string;
+      deviceModelId: string;
+      originalId?: string;
+      timestamp?: number;
+    }> = [];
+    
+    // 모든 선택된 모델 조합을 기반으로 생성
+    (modelCombinations || []).forEach(model => {
+      if (selectedCombinations.includes(model.id)) {
+        allModelsWithCopies.push({
+          id: model.id,
+          name: model.name,
+          storage: model.storage,
+          brand: model.brand,
+          manufacturer: model.manufacturer,
+          deviceModelId: (model as any).deviceModelId || model.id
+        });
+      }
+    });
+    
+    // 복사본들 추가
+    Object.keys(tableData || {}).forEach(modelId => {
+      if (modelId.includes('-copy-')) {
+        const originalModelId = modelId.replace(/-copy-\d+$/, '');
+        const model = (modelCombinations || []).find(m => m.id === originalModelId);
+        if (model) {
+          allModelsWithCopies.push({
+            id: modelId,
+            name: model.name,
+            storage: model.storage,
+            brand: model.brand,
+            manufacturer: model.manufacturer,
+            deviceModelId: (model as any).deviceModelId || model.id,
+            originalId: originalModelId,
+            timestamp: parseInt(modelId.split('-copy-')[1]) || 0
+          });
+        }
+      }
+    });
+    
+    return allModelsWithCopies;
+  };
+
+  const allModelsWithCopies = getAllModelsWithCopies();
+  
+  // 현재 활성 탭의 총 행 개수 계산 (원본 + 복사본)
+  const currentTabRowCount = allModels.length;
+  
+  // 삼성/애플 전체 행 개수 계산 (복사본 포함)
+  const samsungRowCount = allModelsWithCopies.filter(model => model.brand === 'samsung').length;
+  const appleRowCount = allModelsWithCopies.filter(model => model.brand === 'apple').length;
 
   // 키보드 단축키 처리
   useEffect(() => {
@@ -1253,7 +1436,7 @@ export default function ProductTableEditor({
         <h2 className="text-lg font-semibold">상품 등록</h2>
         <div className="flex space-x-2">
           <Button variant="outline" onClick={() => setShowModelModal(true)}>
-            단말기 선택 ({modelCombinations.length}개)
+            단말기 선택
           </Button>
           <Button variant="outline" onClick={handleCancel} disabled={isSaving}>
             취소
@@ -1301,14 +1484,30 @@ export default function ProductTableEditor({
           // 모델 ID 추출하여 selectedModels 업데이트
           const modelIds = new Set(selectedCombinations.map(combo => combo.split('-')[0]));
           setSelectedModels(modelIds);
+          
+          // 선택되지 않은 모델들의 tableData 정리
+          setTableData(prev => {
+            const newData = { ...prev };
+            const selectedModelIds = new Set(selectedCombinations);
+            
+            // 선택되지 않은 모델들의 데이터 제거
+            Object.keys(newData).forEach(modelId => {
+              const originalModelId = modelId.replace(/-copy-\d+$/, '');
+              if (!selectedModelIds.has(originalModelId)) {
+                delete newData[modelId];
+              }
+            });
+            
+            return newData;
+          });
         }}
         selectedCombinations={selectedCombinations}
       />
 
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'samsung' | 'apple')}>
         <TabsList>
-          <TabsTrigger value="samsung">삼성</TabsTrigger>
-          <TabsTrigger value="apple">애플</TabsTrigger>
+          <TabsTrigger value="samsung">삼성 ({samsungRowCount}개)</TabsTrigger>
+          <TabsTrigger value="apple">애플 ({appleRowCount}개)</TabsTrigger>
         </TabsList>
 
         <TabsContent value={activeTab} className="space-y-4">
@@ -1357,7 +1556,7 @@ export default function ProductTableEditor({
                     type="date"
                     value={exposureEndDate}
                     onChange={(e) => setExposureEndDate(e.target.value)}
-                    min={exposureStartDate}
+                    min={exposureStartDate || new Date().toISOString().split('T')[0]}
                     className="text-sm border rounded px-2 py-1"
                     placeholder="종료일"
                   />
@@ -1389,7 +1588,9 @@ export default function ProductTableEditor({
                           />
                         </div>
                       </TableHead>
-                      <TableHead className="border-r text-center" colSpan={2}>모델 정보</TableHead>
+                      <TableHead className="border-r text-center" colSpan={2}>
+                        모델 정보 ({currentTabRowCount}개)
+                      </TableHead>
                       {CARRIERS.map(carrier => (
                         <TableHead key={carrier} colSpan={2} className="text-center border-r last:border-r-0">
                           {CARRIER_DISPLAY_NAMES[carrier as keyof typeof CARRIER_DISPLAY_NAMES]}
@@ -1627,7 +1828,19 @@ export default function ProductTableEditor({
             {selectedCell && (
               <div className="space-y-4">
                 <div className="text-sm text-muted-foreground">
-                  {(modelCombinations || []).find(m => m.id === selectedCell.modelId)?.name} {(modelCombinations || []).find(m => m.id === selectedCell.modelId)?.storage} - {selectedCell.carrier} - {selectedCell.condition}
+                  {(() => {
+                    // allModels에서 모델 정보 찾기 (복사본 포함)
+                    const model = allModels.find(m => m.id === selectedCell.modelId);
+                    if (model) {
+                      return `${model.name} ${model.storage} - ${selectedCell.carrier} - ${selectedCell.condition}`;
+                    }
+                    // fallback: modelCombinations에서 찾기
+                    const fallbackModel = (modelCombinations || []).find(m => m.id === selectedCell.modelId);
+                    if (fallbackModel) {
+                      return `${fallbackModel.name} ${fallbackModel.storage} - ${selectedCell.carrier} - ${selectedCell.condition}`;
+                    }
+                    return `${selectedCell.modelId} - ${selectedCell.carrier} - ${selectedCell.condition}`;
+                  })()}
                 </div>
                 <div className="space-y-2">
                   <Label>선택</Label>

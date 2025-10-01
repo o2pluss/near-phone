@@ -161,8 +161,10 @@ export default function ProductTableManagement() {
   const getTableStatus = (table: ProductTable) => {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()); // 오늘 00:00:00
-    const startDate = new Date(table.exposureStartDate);
-    const endDate = new Date(table.exposureEndDate);
+    
+    // 날짜 문자열을 로컬 시간대로 파싱 (시간대 문제 해결)
+    const startDate = new Date(table.exposureStartDate + 'T00:00:00');
+    const endDate = new Date(table.exposureEndDate + 'T23:59:59');
     
     console.log('상태 확인:', {
       tableName: table.name,

@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   const storage = searchParams.get('storage'); // 128gb | 256gb | 512gb | 1tb
   const signupType = searchParams.get('signupType'); // 번호이동 | 신규가입 | 기기변경
   const conditions = searchParams.get('conditions'); // comma-separated conditions
-  const q = searchParams.get('q'); // 모델명 검색
+  const model = searchParams.get('model'); // 모델명 검색
   const cursor = searchParams.get('cursor');
   const limit = Number(searchParams.get('limit') ?? '15');
 
@@ -35,9 +35,9 @@ export async function GET(req: NextRequest) {
       query = query.ilike('conditions', `%${condition}%`);
     }
   }
-  if (q) {
+  if (model) {
     // 모델명으로 products 테이블의 name 컬럼 검색
-    query = query.ilike('products.name', `%${q}%`);
+    query = query.ilike('products.name', `%${model}%`);
   }
   if (cursor) query = query.lt('created_at', cursor);
   

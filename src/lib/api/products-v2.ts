@@ -250,7 +250,8 @@ export async function searchProducts(request: ProductSearchRequest): Promise<Pro
         is_active
       )
     `)
-    .eq('is_active', true);
+    .eq('is_active', true)
+    .is('deleted_at', null);
 
   // 필터 적용
   if (request.model) {
