@@ -12,6 +12,8 @@ function SearchPageInner() {
     const currentParams = new URLSearchParams(searchParams.toString());
     if (store.selectedProduct) {
       currentParams.set('productId', store.selectedProduct.id);
+      // 상품 정보를 JSON으로 인코딩해서 전달
+      currentParams.set('productData', encodeURIComponent(JSON.stringify(store.selectedProduct)));
     }
     currentParams.set('from', 'search');
     const queryString = currentParams.toString();

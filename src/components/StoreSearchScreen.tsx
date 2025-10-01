@@ -111,7 +111,12 @@ export default function StoreSearchScreen({
   const [showModelModal, setShowModelModal] = useState(false);
   const [selectedStore, setSelectedStore] =
     useState<Store | null>(null);
+  const [mapSelectedStore, setMapSelectedStore] = useState<Store | null>(null);
   const [visibleStores, setVisibleStores] = useState<Store[]>([]);
+  const [mapState, setMapState] = useState<{
+    center: { lat: number; lng: number };
+    zoom: number;
+  } | null>(null);
   
   // 지도 영역 필터링 핸들러
   const handleVisibleStoresChange = useCallback((stores: any[]) => {
@@ -376,6 +381,16 @@ export default function StoreSearchScreen({
       
       onStoreSelect(storeWithProduct);
     }
+  };
+
+  const handleMapClick = () => {
+    // 지도 클릭 시 카드 닫기
+    setMapSelectedStore(null);
+  };
+
+  const handleMapStateChange = (center: { lat: number; lng: number }, zoom: number) => {
+    // 지도 상태 저장
+    setMapState({ center, zoom });
   };
 
   const handleModelSelect = (modelId: string) => {
@@ -672,10 +687,18 @@ export default function StoreSearchScreen({
           />
         ) : (
           <MapView
+            key="map-view"
             stores={sortedStores}
             selectedStore={selectedStore}
+            mapSelectedStore={mapSelectedStore}
+            setMapSelectedStore={setMapSelectedStore}
+            mapState={mapState}
+            hasProductFilters={hasProductFilters}
+            storeSearchQuery={storeSearchQuery}
             onStoreClick={handleStoreClick}
             onStoreSelect={onStoreSelect}
+            onMapClick={handleMapClick}
+            onMapStateChange={handleMapStateChange}
             onVisibleStoresChange={handleVisibleStoresChange}
             onFavoriteToggle={handleFavoriteToggle}
             isFavorite={isFavorite}
@@ -697,7 +720,7 @@ export default function StoreSearchScreen({
       </div>
 
       {/* Floating View Toggle Button */}
-      {!(viewMode === "map" && selectedStore) && (
+      {!(viewMode === "map" && selectedStore) && !(viewMode === "map" && mapSelectedStore) && (
         <div className="absolute left-1/2 transform -translate-x-1/2 z-50 bottom-20">
           <Button
             onClick={() =>
@@ -993,8 +1016,15 @@ function ListView({
 function MapView({
   stores,
   selectedStore,
+  mapSelectedStore,
+  setMapSelectedStore,
+  mapState,
+  hasProductFilters,
+  storeSearchQuery,
   onStoreClick,
   onStoreSelect,
+  onMapClick,
+  onMapStateChange,
   onVisibleStoresChange,
   onFavoriteToggle,
   isFavorite,
@@ -1002,8 +1032,15 @@ function MapView({
 }: {
   stores: Store[];
   selectedStore: Store | null;
+  mapSelectedStore: Store | null;
+  setMapSelectedStore: (store: Store | null) => void;
+  mapState: { center: { lat: number; lng: number }; zoom: number } | null;
+  hasProductFilters: boolean;
+  storeSearchQuery: any;
   onStoreClick: (store: Store | null) => void;
   onStoreSelect: (store: Store) => void;
+  onMapClick: () => void;
+  onMapStateChange: (center: { lat: number; lng: number }, zoom: number) => void;
   onVisibleStoresChange?: (visibleStores: any[]) => void;
   onFavoriteToggle: (store: Store, e: React.MouseEvent) => void;
   isFavorite: (storeId: string) => boolean;
@@ -1012,11 +1049,13 @@ function MapView({
     className: string;
   };
 }) {
+  
+  
   // Store 데이터를 네이버 지도 형식으로 변환 (안정적인 좌표 사용)
   const mapStores = useMemo(() => {
-    return stores
-      .filter(store => store.position) // position이 있는 매장만 필터링
-      .map(store => {
+    const filteredStores = stores.filter(store => store.position); // position이 있는 매장만 필터링
+    
+    return filteredStores.map(store => {
         // 안정적인 좌표 생성 (매장 ID 기반)
         const idHash = store.id.split('').reduce((a, b) => {
           a = ((a << 5) - a) + b.charCodeAt(0);
@@ -1046,29 +1085,65 @@ function MapView({
         };
       });
   }, [stores]);
+  
 
   const handleStoreSelect = (store: any) => {
     // 네이버 지도에서 선택된 매장을 원래 형식으로 변환
     const originalStore = stores.find(s => s.id === store.id);
     if (originalStore) {
-      onStoreClick(originalStore);
+      // 지도보기에서는 mapSelectedStore 상태를 업데이트하여 하단 카드 표시
+      setMapSelectedStore(originalStore);
     }
   };
 
   return (
-    <div className="h-full relative" style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div className="h-full relative" style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'visible' }}>
       <NaverMapWithSearch
         stores={mapStores}
         onStoreSelect={handleStoreSelect}
+        onMapClick={onMapClick}
+        onMapStateChange={onMapStateChange}
         onVisibleStoresChange={onVisibleStoresChange}
-        center={{ lat: 37.5665, lng: 126.9780 }}
-        zoom={10}
+        center={mapState?.center || { lat: 37.5665, lng: 126.9780 }}
+        zoom={mapState?.zoom || 10}
         className="w-full"
+        style={{ height: 'calc(100vh - 200px)' }}
       />
 
       {/* Selected Store Info */}
-      {selectedStore && (
-        <div className="absolute bottom-0 left-0 right-0 bg-white border-t shadow-lg z-30">
+      {mapSelectedStore && (
+        <div 
+          className="bg-white border-t min-h-[120px] rounded-t-lg cursor-pointer" 
+          style={{
+            position: 'fixed',
+            bottom: '64px',
+            left: '0',
+            right: '0',
+            zIndex: 9999
+          }}
+          onClick={() => {
+            // 선택된 상품 정보 찾기
+            let productInfo = null;
+            if (hasProductFilters && storeSearchQuery.data) {
+              const allProducts = storeSearchQuery.data.pages.flatMap((page: any) => page.items || []);
+              productInfo = allProducts.find((product: any) => product.store_id === mapSelectedStore.id);
+            }
+            
+            // 상품 정보가 없으면 첫 번째 상품 사용
+            if (!productInfo && storeSearchQuery.data) {
+              const allProducts = storeSearchQuery.data.pages.flatMap((page: any) => page.items || []);
+              productInfo = allProducts.find((product: any) => product.store_id === mapSelectedStore.id);
+            }
+            
+            // 상품 정보를 store 객체에 추가하여 전달
+            const storeWithProduct = {
+              ...mapSelectedStore,
+              selectedProduct: productInfo
+            };
+            
+            onStoreSelect(storeWithProduct);
+          }}
+        >
           <div className="p-4">
             <div className="space-y-1">
               {/* 상단: 하트 + 매장명 + 가격 */}
@@ -1078,36 +1153,39 @@ function MapView({
                     variant="ghost"
                     size="sm"
                     className="h-6 w-6 p-0 hover:bg-transparent"
-                    onClick={(e) => onFavoriteToggle(selectedStore, e)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onFavoriteToggle(mapSelectedStore, e);
+                    }}
                   >
                     <Heart 
                       className={`h-4 w-4 flex-shrink-0 ${
-                        isFavorite(selectedStore.id) 
+                        isFavorite(mapSelectedStore.id) 
                           ? 'fill-red-500 text-red-500' 
                           : 'text-muted-foreground hover:text-red-500'
                       }`} 
                     />
                   </Button>
                   <h3 className="font-semibold text-base">
-                    {selectedStore.name}
+                    {mapSelectedStore.name}
                   </h3>
                 </div>
                 <div className="text-lg font-semibold text-blue-600 ml-2">
-                  {selectedStore.price.toLocaleString()}원
+                  {mapSelectedStore.price.toLocaleString()}원
                 </div>
               </div>
 
               {/* 거리 | 영업시간 */}
               <div className="text-xs text-muted-foreground ml-6">
-                {selectedStore.distance}km |{" "}
-                {selectedStore.hours}
+                {mapSelectedStore.distance}km |{" "}
+                {mapSelectedStore.hours}
               </div>
 
               {/* 조건 (칩 형태) */}
               <div className="ml-6">
                 <StoreConditionChips
-                  productCarrier={selectedStore.productCarrier}
-                  conditions={selectedStore.conditions}
+                  productCarrier={mapSelectedStore.productCarrier}
+                  conditions={mapSelectedStore.conditions}
                   size="sm"
                 />
               </div>

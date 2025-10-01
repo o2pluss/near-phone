@@ -21,6 +21,8 @@ interface NaverMapWithSearchProps {
   stores: MapStore[];
   onStoreSelect?: (store: MapStore) => void;
   onVisibleStoresChange?: (visibleStores: MapStore[]) => void;
+  onMapClick?: () => void;
+  onMapStateChange?: (center: { lat: number; lng: number }, zoom: number) => void;
   center?: { lat: number; lng: number };
   zoom?: number;
   className?: string;
@@ -30,6 +32,8 @@ export default function NaverMapWithSearch({
   stores,
   onStoreSelect,
   onVisibleStoresChange,
+  onMapClick,
+  onMapStateChange,
   center = { lat: 37.5665, lng: 126.9780 },
   zoom = 10,
   className = "w-full h-96"
@@ -88,6 +92,13 @@ export default function NaverMapWithSearch({
       console.log('지도 생성 완료', newMap);
       setMap(newMap);
       
+      // 지도 클릭 이벤트 추가
+      if (onMapClick) {
+        window.naver.maps.Event.addListener(newMap, 'click', () => {
+          onMapClick();
+        });
+      }
+      
       // 지도 크기 재설정 (지도가 완전히 로드된 후)
       setTimeout(() => {
         if (newMap && window.naver) {
@@ -102,6 +113,16 @@ export default function NaverMapWithSearch({
         setTimeout(() => {
           updateVisibleStores(newMap, stores);
         }, 500);
+        
+        // 지도 상태 변경 콜백 호출
+        if (onMapStateChange) {
+          const center = newMap.getCenter();
+          const zoom = newMap.getZoom();
+          onMapStateChange(
+            { lat: center.lat(), lng: center.lng() },
+            zoom
+          );
+        }
       });
       
       window.naver.maps.Event.addListener(newMap, 'zoom_changed', () => {
@@ -109,6 +130,16 @@ export default function NaverMapWithSearch({
         setTimeout(() => {
           updateVisibleStores(newMap, stores);
         }, 500);
+        
+        // 지도 상태 변경 콜백 호출
+        if (onMapStateChange) {
+          const center = newMap.getCenter();
+          const zoom = newMap.getZoom();
+          onMapStateChange(
+            { lat: center.lat(), lng: center.lng() },
+            zoom
+          );
+        }
       });
       
       // 초기 매장 필터링
@@ -175,11 +206,6 @@ export default function NaverMapWithSearch({
       });
 
     setMarkers(newMarkers);
-    
-    // 디버깅을 위한 로그
-    console.log(`마커 생성 완료: ${newMarkers.length}개`, {
-      stores: stores.map(s => ({ id: s.id, lat: s.latitude, lng: s.longitude }))
-    });
   }, [map, stores, onStoreSelect]);
 
   // 매장 마커 업데이트

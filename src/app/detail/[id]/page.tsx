@@ -13,8 +13,19 @@ function DetailPageInner() {
 
   const storeId = params.id as string;
   const productId = searchParams.get('productId');
+  const productData = searchParams.get('productData');
   const fromReservation = searchParams.get('from') === 'reservation';
   const fromSearch = searchParams.get('from') === 'search';
+
+  // productData를 파싱해서 selectedProduct로 변환
+  let selectedProduct = null;
+  if (productData) {
+    try {
+      selectedProduct = JSON.parse(decodeURIComponent(productData));
+    } catch (error) {
+      console.error('Failed to parse productData:', error);
+    }
+  }
 
   const handleBack = () => {
     if (fromReservation && user && profile) {
@@ -56,6 +67,7 @@ function DetailPageInner() {
       user={user}
       profile={profile}
       productId={productId}
+      selectedProduct={selectedProduct}
     />
   );
 }

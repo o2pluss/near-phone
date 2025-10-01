@@ -83,6 +83,7 @@ interface StoreDetailProps {
   user?: any;
   profile?: any;
   productId?: string | null;
+  selectedProduct?: any; // 매장 찾기에서 전달받은 상품 정보
 }
 
 
@@ -94,88 +95,56 @@ export default function StoreDetail({
   user,
   profile,
   productId,
+  selectedProduct,
 }: StoreDetailProps) {
   const queryClient = useQueryClient();
   const productsQuery = useStoreSearch({ storeId }, { enabled: !!storeId });
   const reviewsQuery = useReviews({ storeId }, { enabled: !!storeId });
   const storeQuery = useStore(storeId, { enabled: !!storeId });
   
-  // 선택된 상품 정보 찾기
-  const selectedProduct = useMemo(() => {
+  // 선택된 상품 정보 (매장 찾기에서 전달받은 정보 우선 사용)
+  const productInfo = selectedProduct || (() => {
+    // selectedProduct가 없으면 productId로 찾기 (예약에서 온 경우)
     if (!productId || !productsQuery.data) return null;
     
     const allProducts = productsQuery.data.pages.flatMap((page: any) => page.items || []);
     return allProducts.find((product: any) => product.id === productId) || null;
-  }, [productId, productsQuery.data]);
-
-  // 선택된 상품 정보 (항상 존재)
-  const productInfo = selectedProduct || {
-    id: '',
-    store_id: '',
-    device_model_id: '',
-    carrier: 'KT',
-    storage: '256GB',
-    price: 0,
-    conditions: [],
-    is_active: true,
-    created_at: '',
-    updated_at: '',
-    device_models: {
-      id: '',
-      manufacturer: '',
-      device_name: '상품 정보 없음',
-      model_name: '',
-      image_url: ''
-    },
-    product_tables: {
-      id: '',
-      name: '',
-      exposure_start_date: '',
-      exposure_end_date: '',
-      is_active: true
-    }
-  };
+  })();
 
   console.log('StoreDetail - productId:', productId);
   console.log('StoreDetail - selectedProduct:', selectedProduct);
   console.log('StoreDetail - productInfo:', productInfo);
+  console.log('StoreDetail - storeQuery.data:', storeQuery.data);
+  console.log('StoreDetail - productsQuery.data:', productsQuery.data);
   
-  // 실제 매장 데이터와 상품 데이터를 조합
+  // 실제 매장 데이터와 상품 데이터를 조합 (실제 데이터만 사용)
   const store: Store = {
     id: storeId,
-    name: storeQuery.data?.name ?? "매장 정보 없음",
-    address: storeQuery.data?.address ?? "",
-    address_detail: storeQuery.data?.address_detail ?? "",
-    phone: storeQuery.data?.phone ?? "-",
-    rating: storeQuery.data?.rating ?? 0,
-    reviewCount: storeQuery.data?.review_count ?? 0,
-    model: productInfo.device_models?.device_name ?? productInfo.device_models?.model_name ?? "상품 정보 없음",
-    price: productInfo.price ?? 0,
-    originalPrice: productInfo.price ?? 0,
-    conditions: productInfo.conditions || [],
-    hours: storeQuery.data?.hours?.weekday ?? "09:00 - 21:00", // 서버에서 가져온 영업시간
-    description: storeQuery.data?.description ?? "매장 설명이 없습니다.",
+    name: storeQuery.data?.name || "",
+    address: storeQuery.data?.address || "",
+    address_detail: storeQuery.data?.address_detail || "",
+    phone: storeQuery.data?.phone || "",
+    rating: storeQuery.data?.rating || 0,
+    reviewCount: storeQuery.data?.review_count || 0,
+    model: productInfo?.device_models?.device_name || productInfo?.device_models?.model_name || "",
+    price: productInfo?.price || 0,
+    originalPrice: productInfo?.price || 0,
+    conditions: productInfo?.conditions || [],
+    hours: storeQuery.data?.hours?.weekday || "",
+    description: storeQuery.data?.description || "",
     businessHours: storeQuery.data?.hours ? {
-      weekday: storeQuery.data.hours.weekday ?? "09:00 - 21:00",
-      saturday: storeQuery.data.hours.saturday ?? "10:00 - 20:00",
-      sunday: storeQuery.data.hours.sunday ?? "10:00 - 19:00"
-    } : {
-      weekday: "09:00 - 21:00",
-      saturday: "10:00 - 20:00",
-      sunday: "10:00 - 19:00"
-    },
-    productCarrier: (() => {
-      const carrier = productInfo.carrier?.toLowerCase();
+      weekday: storeQuery.data.hours.weekday || "",
+      saturday: storeQuery.data.hours.saturday || "",
+      sunday: storeQuery.data.hours.sunday || ""
+    } : undefined,
+    productCarrier: productInfo?.carrier ? (() => {
+      const carrier = productInfo.carrier.toLowerCase();
       if (carrier === 'kt') return 'kt';
       if (carrier === 'skt') return 'skt';
       if (carrier === 'lgu' || carrier === 'lg u+') return 'lgu';
       return 'kt';
-    })(),
-    images: storeQuery.data?.images && storeQuery.data.images.length > 0 ? storeQuery.data.images : [
-      "https://images.unsplash.com/photo-1723133741318-0f5c5afcf19e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2JpbGUlMjBwaG9uZSUyMHN0b3JlJTIwaW50ZXJpb3J8ZW58MXx8fHwxNzU4NTEzMjgwfDA&ixlib=rb-4.1.0&q=80&w=1080",
-      "https://images.unsplash.com/photo-1584658645175-90788b3347b3?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwaG9uZSUyMHN0b3JlJTIwZGlzcGxheXxlbnwxfHx8fDE3NTg1MTMyODV8MA&ixlib=rb-4.1.0&q=80&w=1080",
-      "https://images.unsplash.com/photo-1703165552745-37e85f0273cd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxlbGVjdHJvbmljcyUyMHJldGFpbCUyMHN0b3JlfGVufDF8fHx8MTc1ODUxMzI4OXww&ixlib=rb-4.1.0&q=80&w=1080"
-    ],
+    })() : undefined,
+    images: storeQuery.data?.images || [],
     distance: 0.5, // 기본값 (실제로는 위치 기반 계산 필요)
   };
 
@@ -225,6 +194,7 @@ export default function StoreDetail({
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#FAFAFA' }}>
         <div className="text-center">
           <div className="text-lg text-muted-foreground">매장 정보를 불러오는 중...</div>
+          <div className="text-sm text-muted-foreground mt-2">상품 정보를 확인하고 있습니다</div>
         </div>
       </div>
     );
@@ -351,7 +321,7 @@ export default function StoreDetail({
             <div className="space-y-1">
               <div className="flex items-center">
                 <div className="font-semibold text-lg">
-                  {store.name}
+                  {store.name || "매장명 정보 없음"}
                 </div>
                 <div className="ml-2 text-gray-400 text-sm">
                   {store.distance}km
@@ -363,61 +333,72 @@ export default function StoreDetail({
               <div className="flex items-center space-x-1">
                 <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
                 <span className="font-medium">
-                  {store.rating}
+                  {store.rating || 0}
                 </span>
-                <span>({store.reviewCount}명)</span>
+                <span>({store.reviewCount || 0}명)</span>
               </div>
             </div>
           </div>
 
           {/* Description */}
-          <div className="text-muted-foreground">
-            {store.description || ""}
-          </div>
+          {store.description && (
+            <div className="text-muted-foreground">
+              {store.description}
+            </div>
+          )}
 
           {/* Contact Info */}
           <div className="space-y-3 border-t pt-4">
-            <div className="flex items-center space-x-3">
-              <div>
-                <div className="text-muted-foreground">
-                  {store.address} {store.address_detail}
+            {(store.address || store.address_detail) && (
+              <div className="flex items-center space-x-3">
+                <div>
+                  <div className="text-muted-foreground">
+                    {store.address} {store.address_detail}
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
-            <div className="flex items-center space-x-3">
-              <div>
-                <div className="text-muted-foreground">
-                  {store.phone}
+            {store.phone && (
+              <div className="flex items-center space-x-3">
+                <div>
+                  <div className="text-muted-foreground">
+                    {store.phone}
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
-            <div className="space-y-1">
-              <h4 className="font-medium text-sm">영업시간</h4>
-              {store.businessHours ? (
-                <div className="text-muted-foreground text-sm space-y-0.5">
-                  <div>평일: {store.businessHours.weekday}</div>
-                  <div>토요일: {store.businessHours.saturday}</div>
-                  <div>일요일: {store.businessHours.sunday}</div>
-                </div>
-              ) : (
-                <div className="text-muted-foreground text-sm">
-                  {store.hours}
-                </div>
-              )}
-            </div>
+            {(store.businessHours || store.hours) && (
+              <div className="space-y-1">
+                <h4 className="font-medium text-sm">영업시간</h4>
+                {store.businessHours ? (
+                  <div className="text-muted-foreground text-sm space-y-0.5">
+                    {store.businessHours.weekday && <div>평일: {store.businessHours.weekday}</div>}
+                    {store.businessHours.saturday && <div>토요일: {store.businessHours.saturday}</div>}
+                    {store.businessHours.sunday && <div>일요일: {store.businessHours.sunday}</div>}
+                  </div>
+                ) : (
+                  <div className="text-muted-foreground text-sm">
+                    {store.hours}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
-          {/* Additional Info - 예약에서 온 경우 숨김 */}
-          {!hideConditionsAndBooking && (
+          {/* Additional Info - 예약에서 온 경우 숨김, 실제 데이터가 있을 때만 표시 */}
+          {!hideConditionsAndBooking && productInfo && (
             <div className="bg-blue-50 rounded-lg p-4 text-sm">
               <div className="space-y-2">
-                 {productInfo.device_models && (
-                   <div>
-                     {getManufacturerDisplayName(productInfo.device_models.manufacturer)} · {productInfo.device_models.device_name} · {(productInfo.storage).toUpperCase()}
-                   </div>
-                 )}
+                {/* 상품 정보 표시 - 실제 데이터가 있을 때만 */}
+                {productInfo.device_models && productInfo.device_models.manufacturer && productInfo.device_models.device_name && (
+                  <div className="font-medium">
+                    {getManufacturerDisplayName(productInfo.device_models.manufacturer)} · {productInfo.device_models.device_name} · {productInfo.storage?.toUpperCase()}
+                  </div>
+                )}
+                
+                {/* 배지들 - 실제 데이터가 있을 때만 */}
                 <div className="flex flex-wrap gap-2">
                   {/* 통신사 CHIP (맨 앞에 표시) */}
                   {productInfo.carrier && (
@@ -425,23 +406,31 @@ export default function StoreDetail({
                       {getCarrierLabel(productInfo.carrier.toUpperCase() as any)}
                     </Badge>
                   )}
-                  {productInfo.conditions.map((condition, index) => {
-                    const { className } = getConditionStyle(condition);
-                    return (
-                      <Badge
-                        key={index}
-                        className={`text-xs px-1.5 py-0.5 border ${className}`}
-                      >
-                        {condition}
-                      </Badge>
-                    );
-                  })}
+                  
+                  {/* 조건 배지들 */}
+                  {productInfo.conditions && productInfo.conditions.length > 0 && (
+                    productInfo.conditions.map((condition: string, index: number) => {
+                      const { className } = getConditionStyle(condition);
+                      return (
+                        <Badge
+                          key={index}
+                          className={`text-xs px-1.5 py-0.5 border ${className}`}
+                        >
+                          {condition}
+                        </Badge>
+                      );
+                    })
+                  )}
                 </div>
-                <div className="flex justify-end">
-                  <span className="font-semibold text-blue-600">
-                    {formatPrice(productInfo.price)}
-                  </span>
-                </div>
+                
+                {/* 가격 정보 - 실제 데이터가 있을 때만 */}
+                {productInfo.price && (
+                  <div className="flex justify-end">
+                    <span className="font-semibold text-blue-600">
+                      {formatPrice(productInfo.price)}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           )}
