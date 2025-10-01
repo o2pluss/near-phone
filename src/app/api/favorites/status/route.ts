@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
     const token = authHeader.split(' ')[1];
     
     // 토큰으로 사용자 확인
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    const { data: { user }, error: authError } = await supabaseServer.auth.getUser(token);
     if (authError || !user) {
       console.error('인증 오류:', authError);
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

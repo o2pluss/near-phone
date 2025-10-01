@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -57,6 +58,7 @@ interface FavoriteStoresProps {
 export default function FavoriteStores({
   onStoreSelect,
 }: FavoriteStoresProps) {
+  const router = useRouter();
   const { favoriteStores, isLoading, isError, removeFromFavorites } = useFavorites();
 
   const removeFavorite = async (storeId: string, e: React.MouseEvent) => {
@@ -66,6 +68,10 @@ export default function FavoriteStores({
     } catch (error) {
       console.error('즐겨찾기 제거 실패:', error);
     }
+  };
+
+  const handleFindStores = () => {
+    router.push('/search');
   };
 
   const handleStoreClick = (store: Store, e: React.MouseEvent) => {
@@ -135,7 +141,7 @@ export default function FavoriteStores({
             <p className="text-muted-foreground mb-6">
               관심 있는 매장을 즐겨찾기에 추가해보세요
             </p>
-            <Button variant="outline">매장 찾기</Button>
+            <Button variant="outline" onClick={handleFindStores}>매장 찾기</Button>
           </div>
         </div>
       </div>

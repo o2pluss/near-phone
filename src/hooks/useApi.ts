@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useMutation, useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabaseClient';
 
 export function useStores(
@@ -8,11 +8,15 @@ export function useStores(
   return useInfiniteQuery({
     queryKey: ['stores', params],
     queryFn: async ({ pageParam }) => {
-      // undefined 값 필터링
-      const filteredParams = Object.fromEntries(
-        Object.entries(params || {}).filter(([_, value]) => value !== undefined && value !== null && value !== '')
-      );
-      const sp = new URLSearchParams(filteredParams);
+      // undefined 값 필터링하고 문자열로 변환
+      const sp = new URLSearchParams();
+      if (params) {
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined && value !== null && value !== '') {
+            sp.set(key, String(value));
+          }
+        });
+      }
       if (pageParam) sp.set('cursor', String(pageParam));
       const res = await fetch(`/api/stores?${sp.toString()}`);
       if (!res.ok) throw new Error('Failed to fetch stores');
@@ -31,11 +35,15 @@ export function useStoreProducts(
   return useInfiniteQuery({
     queryKey: ['store-products', params],
     queryFn: async ({ pageParam }) => {
-      // undefined 값 필터링
-      const filteredParams = Object.fromEntries(
-        Object.entries(params || {}).filter(([_, value]) => value !== undefined && value !== null && value !== '')
-      );
-      const sp = new URLSearchParams(filteredParams);
+      // undefined 값 필터링하고 문자열로 변환
+      const sp = new URLSearchParams();
+      if (params) {
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined && value !== null && value !== '') {
+            sp.set(key, String(value));
+          }
+        });
+      }
       if (pageParam) sp.set('cursor', String(pageParam));
       const res = await fetch(`/api/store-products?${sp.toString()}`);
       if (!res.ok) throw new Error('Failed to fetch store products');
@@ -78,11 +86,15 @@ export function useDeviceModels(
   }>({
     queryKey: ['device-models', params],
     queryFn: async () => {
-      // undefined 값 필터링
-      const filteredParams = Object.fromEntries(
-        Object.entries(params || {}).filter(([_, value]) => value !== undefined && value !== null && value !== '')
-      );
-      const sp = new URLSearchParams(filteredParams);
+      // undefined 값 필터링하고 문자열로 변환
+      const sp = new URLSearchParams();
+      if (params) {
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined && value !== null && value !== '') {
+            sp.set(key, String(value));
+          }
+        });
+      }
       const res = await fetch(`/api/device-models?${sp.toString()}`);
       if (!res.ok) throw new Error('Failed to fetch device models');
       return res.json();
@@ -98,11 +110,15 @@ export function useStoreSearch(
   return useInfiniteQuery({
     queryKey: ['store-search', params],
     queryFn: async ({ pageParam }) => {
-      // undefined 값 필터링
-      const filteredParams = Object.fromEntries(
-        Object.entries(params || {}).filter(([_, value]) => value !== undefined && value !== null && value !== '')
-      );
-      const sp = new URLSearchParams(filteredParams);
+      // undefined 값 필터링하고 문자열로 변환
+      const sp = new URLSearchParams();
+      if (params) {
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined && value !== null && value !== '') {
+            sp.set(key, String(value));
+          }
+        });
+      }
       if (pageParam) sp.set('cursor', String(pageParam));
       const res = await fetch(`/api/store-search?${sp.toString()}`);
       if (!res.ok) throw new Error('Failed to fetch store search results');
@@ -136,7 +152,14 @@ export function useReviews(
   return useInfiniteQuery({
     queryKey: ['reviews', params],
     queryFn: async ({ pageParam }) => {
-      const sp = new URLSearchParams({ ...(params as any) });
+      const sp = new URLSearchParams();
+      if (params) {
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined) {
+            sp.set(key, String(value));
+          }
+        });
+      }
       if (pageParam) sp.set('cursor', String(pageParam));
       const res = await fetch(`/api/reviews?${sp.toString()}`);
       if (!res.ok) throw new Error('Failed to fetch reviews');
@@ -145,6 +168,145 @@ export function useReviews(
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     initialPageParam: undefined,
     enabled: options?.enabled ?? true,
+  });
+}
+
+// 리뷰 통계 조회
+export function useReviewStats(
+  storeId: string,
+  options?: { enabled?: boolean }
+) {
+  return useQuery({
+    queryKey: ['reviewStats', storeId],
+    queryFn: async () => {
+      const res = await fetch(`/api/reviews/stats?storeId=${storeId}`);
+      if (!res.ok) throw new Error('Failed to fetch review stats');
+      return res.json();
+    },
+    enabled: (options?.enabled ?? true) && !!storeId,
+  });
+}
+
+// 리뷰 작성
+export function useCreateReview() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (payload: {
+      storeId: string;
+      reservationId?: string;
+      rating: number;
+      content: string;
+    }) => {
+      // 인증 헤더 가져오기
+      const { getAuthHeaders } = await import('@/lib/auth');
+      const authHeaders = await getAuthHeaders();
+      
+      const res = await fetch('/api/reviews', {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify(payload),
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        
+        // 인증 오류 처리
+        if (res.status === 401) {
+          throw new Error('로그인이 필요합니다. 로그인 후 다시 시도해주세요.');
+        }
+        
+        throw new Error(errorData.error || '리뷰 작성에 실패했습니다.');
+      }
+      
+      return res.json();
+    },
+    onSuccess: (data, variables) => {
+      // 리뷰 목록과 통계 캐시 무효화
+      queryClient.invalidateQueries({ queryKey: ['reviews'] });
+      queryClient.invalidateQueries({ queryKey: ['reviewStats', variables.storeId] });
+    },
+  });
+}
+
+// 리뷰 수정
+export function useUpdateReview() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ 
+      reviewId, 
+      rating, 
+      content 
+    }: { 
+      reviewId: string; 
+      rating: number; 
+      content: string; 
+    }) => {
+      // 인증 헤더 가져오기
+      const { getAuthHeaders } = await import('@/lib/auth');
+      const authHeaders = await getAuthHeaders();
+      
+      const res = await fetch(`/api/reviews/${reviewId}`, {
+        method: 'PUT',
+        headers: authHeaders,
+        body: JSON.stringify({ rating, content }),
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        
+        // 인증 오류 처리
+        if (res.status === 401) {
+          throw new Error('로그인이 필요합니다. 로그인 후 다시 시도해주세요.');
+        }
+        
+        throw new Error(errorData.error || '리뷰 수정에 실패했습니다.');
+      }
+      
+      return res.json();
+    },
+    onSuccess: () => {
+      // 리뷰 목록과 통계 캐시 무효화
+      queryClient.invalidateQueries({ queryKey: ['reviews'] });
+      queryClient.invalidateQueries({ queryKey: ['reviewStats'] });
+    },
+  });
+}
+
+// 리뷰 삭제
+export function useDeleteReview() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (reviewId: string) => {
+      // 인증 헤더 가져오기
+      const { getAuthHeaders } = await import('@/lib/auth');
+      const authHeaders = await getAuthHeaders();
+      
+      const res = await fetch(`/api/reviews/${reviewId}`, {
+        method: 'DELETE',
+        headers: authHeaders,
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        
+        // 인증 오류 처리
+        if (res.status === 401) {
+          throw new Error('로그인이 필요합니다. 로그인 후 다시 시도해주세요.');
+        }
+        
+        throw new Error(errorData.error || '리뷰 삭제에 실패했습니다.');
+      }
+      
+      return res.json();
+    },
+    onSuccess: () => {
+      // 리뷰 목록과 통계 캐시 무효화
+      queryClient.invalidateQueries({ queryKey: ['reviews'] });
+      queryClient.invalidateQueries({ queryKey: ['reviewStats'] });
+    },
   });
 }
 

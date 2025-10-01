@@ -140,7 +140,7 @@ export async function POST(req: NextRequest) {
     
     // 토큰으로 사용자 확인
     console.log('사용자 인증 확인 중...');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    const { data: { user }, error: authError } = await supabaseServer.auth.getUser(token);
     
     if (authError) {
       console.error('인증 오류:', authError);
@@ -165,13 +165,20 @@ export async function POST(req: NextRequest) {
     
     // 중복 확인 (매장+상품 조합)
     console.log('중복 확인 중...');
-    const { data: existing, error: checkError } = await serviceSupabase
+    let query = serviceSupabase
       .from('favorites')
       .select('id')
       .eq('user_id', user_id)
-      .eq('store_id', store_id)
-      .eq('product_id', product_id || null)
-      .single();
+      .eq('store_id', store_id);
+    
+    // product_id가 있을 때만 조건 추가
+    if (product_id) {
+      query = query.eq('product_id', product_id);
+    } else {
+      query = query.is('product_id', null);
+    }
+    
+    const { data: existing, error: checkError } = await query.single();
     
     console.log('중복 확인 결과:', { existing, checkError });
     
@@ -186,12 +193,20 @@ export async function POST(req: NextRequest) {
     }
     
     console.log('즐겨찾기 추가 중...');
-    const insertData = { 
+    const insertData: any = { 
       user_id, 
-      store_id, 
-      product_id: product_id || null,
-      product_snapshot: product_snapshot || null
+      store_id
     };
+    
+    // product_id가 있을 때만 추가
+    if (product_id) {
+      insertData.product_id = product_id;
+    }
+    
+    // product_snapshot이 있을 때만 추가
+    if (product_snapshot) {
+      insertData.product_snapshot = product_snapshot;
+    }
     console.log('삽입할 데이터:', insertData);
     
     const { data, error } = await serviceSupabase

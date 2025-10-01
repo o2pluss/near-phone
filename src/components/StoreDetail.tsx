@@ -37,7 +37,7 @@ import ReservationModal from "./reservation/ReservationModal";
 import ReservationSuccessDialog from "./reservation/ReservationSuccessDialog";
 import type { ReviewStats } from "../types/review";
 import { formatPrice } from "../utils/formatPrice";
-import { useReviews, useStoreSearch, useStore } from "@/hooks/useApi";
+import { useReviews, useReviewStats, useStoreSearch, useStore, useFavoriteStatus, useFavoriteMutations } from "@/hooks/useApi";
 import { MANUFACTURER_LABELS, getCarrierLabel } from "@/lib/constants/codes";
 
 // 제조사명을 한글로 변환하는 함수
@@ -100,7 +100,15 @@ export default function StoreDetail({
   const queryClient = useQueryClient();
   const productsQuery = useStoreSearch({ storeId }, { enabled: !!storeId });
   const reviewsQuery = useReviews({ storeId }, { enabled: !!storeId });
+  const reviewStatsQuery = useReviewStats(storeId, { enabled: !!storeId });
   const storeQuery = useStore(storeId, { enabled: !!storeId });
+  
+  // 즐겨찾기 관련 훅들
+  const userId = user?.id || 'anonymous';
+  const favoriteStatusQuery = useFavoriteStatus(storeId, userId, { 
+    enabled: !!storeId && userId !== 'anonymous' 
+  });
+  const { addFavorite, removeFavorite } = useFavoriteMutations(userId);
   
   // 선택된 상품 정보 (매장 찾기에서 전달받은 정보 우선 사용)
   const productInfo = selectedProduct || (() => {
@@ -149,18 +157,68 @@ export default function StoreDetail({
   };
 
 
-  const [isFavorite, setIsFavorite] = useState(false);
   const [isReservationOpen, setIsReservationOpen] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [showReservationSuccess, setShowReservationSuccess] = useState(false);
+  
+  // 즐겨찾기 상태 (로컬 상태 + 서버 상태 조합)
+  const [localFavoriteState, setLocalFavoriteState] = useState<boolean | null>(null);
+  const serverFavoriteState = favoriteStatusQuery.data?.isFavorite || false;
+  const isFavorite = localFavoriteState !== null ? localFavoriteState : serverFavoriteState;
+  
+  // 서버 상태가 변경되면 로컬 상태 초기화
+  useEffect(() => {
+    if (favoriteStatusQuery.data) {
+      setLocalFavoriteState(null);
+    }
+  }, [favoriteStatusQuery.data]);
   
   // 리뷰 상태 관리
 
   const router = useRouter();
 
 
-  const toggleFavorite = () => {
-    setIsFavorite(!isFavorite);
+  const toggleFavorite = async () => {
+    // 익명 사용자는 즐겨찾기 불가
+    if (userId === 'anonymous') {
+      alert('즐겨찾기 기능을 사용하려면 로그인이 필요합니다.');
+      return;
+    }
+
+    // 로컬 상태를 먼저 업데이트 (즉시 UI 반영)
+    const newFavoriteState = !isFavorite;
+    setLocalFavoriteState(newFavoriteState);
+
+    try {
+      if (isFavorite) {
+        // 즐겨찾기 제거
+        await removeFavorite.mutateAsync(storeId);
+      } else {
+        // 즐겨찾기 추가
+        await addFavorite.mutateAsync({
+          storeId,
+          productId: productInfo?.id,
+          productSnapshot: productInfo ? {
+            id: productInfo.id,
+            name: productInfo.device_models?.device_name || productInfo.device_models?.model_name || '',
+            model: productInfo.device_models?.model_name || '',
+            storage: productInfo.storage || '256GB',
+            price: productInfo.price || 0,
+            carrier: productInfo.carrier || 'kt',
+            conditions: productInfo.conditions || [],
+            isDeleted: false,
+          } : undefined
+        });
+      }
+      
+      // 성공 시 로컬 상태를 서버 상태와 동기화
+      setLocalFavoriteState(null);
+    } catch (error) {
+      console.error('즐겨찾기 토글 오류:', error);
+      // 실패 시 로컬 상태를 원래대로 롤백
+      setLocalFavoriteState(!newFavoriteState);
+      alert(error instanceof Error ? error.message : '즐겨찾기 처리 중 오류가 발생했습니다.');
+    }
   };
 
   const handleReservationSuccess = () => {
@@ -227,6 +285,7 @@ export default function StoreDetail({
               variant="ghost"
               size="sm"
               onClick={toggleFavorite}
+              disabled={addFavorite.isPending || removeFavorite.isPending || favoriteStatusQuery.isLoading}
             >
               <Heart
                 className={`h-5 w-5 ${
@@ -440,9 +499,9 @@ export default function StoreDetail({
             <ReviewList
               storeId={store.id}
               reviews={reviewsQuery.data?.pages.flatMap((p: any) => p.items) ?? []}
-              reviewStats={{
-                totalReviews: reviewsQuery.data?.pages.flatMap((p: any) => p.items).length ?? 0,
-                averageRating: store.rating,
+              reviewStats={reviewStatsQuery.data ?? {
+                totalReviews: 0,
+                averageRating: 0,
                 ratingDistribution: {
                   5: 0,
                   4: 0,

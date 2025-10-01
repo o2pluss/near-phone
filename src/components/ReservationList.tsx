@@ -4,6 +4,7 @@ import ReservationListHeader from "./reservation/ReservationListHeader";
 import ReservationTabContent from "./reservation/ReservationTabContent";
 import ReservationDialogs from "./reservation/ReservationDialogs";
 import { useReservationList, useUpdateReservationStatus, useCancelReservation } from "../hooks/useReservationList";
+import { useCreateReview } from "../hooks/useApi";
 import {
   filterReservationsByStatus,
   groupReservationsByDate,
@@ -40,6 +41,7 @@ export default function ReservationList({
 
   const updateReservationStatus = useUpdateReservationStatus();
   const cancelReservation = useCancelReservation();
+  const createReview = useCreateReview();
   
   // 모든 페이지의 데이터를 합쳐서 Reservation 타입으로 변환
   const allApiReservations = data?.pages.flatMap(page => page.items) || [];
@@ -98,14 +100,9 @@ export default function ReservationList({
 
     setReviewSubmitting(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      console.log("리뷰 제출:", {
-        reservationId: reviewReservation.id,
+      await createReview.mutateAsync({
         storeId: reviewReservation.storeId,
-        storeName: reviewReservation.storeName,
-        model: reviewReservation.model,
-        price: reviewReservation.price,
+        reservationId: reviewReservation.id,
         rating: data.rating,
         content: data.content
       });
@@ -114,7 +111,9 @@ export default function ReservationList({
       setShowReviewForm(false);
       setReviewReservation(null);
     } catch (error) {
-      alert("리뷰 등록에 실패했습니다. 다시 시도해주세요.");
+      console.error("리뷰 제출 오류:", error);
+      const errorMessage = error instanceof Error ? error.message : "리뷰 등록에 실패했습니다.";
+      alert(errorMessage);
     } finally {
       setReviewSubmitting(false);
     }
