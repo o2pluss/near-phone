@@ -1,34 +1,31 @@
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { useForm, Controller } from 'react-hook-form';
 import { 
   Shield, 
   Users, 
   Store, 
   Package, 
-  UserCheck, 
-  Ban, 
-  Eye, 
-  Trash2, 
-  CheckCircle, 
-  XCircle, 
-  Plus,
-  Edit,
   AlertTriangle,
   MessageSquare,
   Upload,
   X,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Menu,
+  X as XIcon
 } from 'lucide-react';
-import ReviewManagement from './admin/ReviewManagement';
+import UserManagementTab from './admin/tabs/UserManagementTab';
+import StoreManagementTab from './admin/tabs/StoreManagementTab';
+import ProductManagementTab from './admin/tabs/ProductManagementTab';
+import ReviewManagementTab from './admin/tabs/ReviewManagementTab';
+import DeviceManagementTab from './admin/tabs/DeviceManagementTab';
 import { supabase } from '../lib/supabaseClient';
 import { getDeviceModels, getDeviceModelById, type DeviceModelsResponse } from '../lib/api/deviceModels';
 import { type Product as BaseProduct, type DeviceModel } from '../types/product';
@@ -54,16 +51,6 @@ import {
   type StorageCode
 } from '../lib/constants/codes';
 
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  role: 'user' | 'seller';
-  status: 'active' | 'blocked';
-  createdAt: string;
-  lastLogin: string;
-}
 
 interface Store {
   id: string;
@@ -81,10 +68,12 @@ interface Store {
 
 
 export default function AdminDashboard() {
-  const [users, setUsers] = useState<User[]>([]);
+  const router = useRouter();
   const [stores, setStores] = useState<Store[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [deviceModels, setDeviceModels] = useState<DeviceModel[]>([]);
+  const [activeMenu, setActiveMenu] = useState('home');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
   // 페이지네이션 상태
   const [currentPage, setCurrentPage] = useState(1);
@@ -185,12 +174,6 @@ export default function AdminDashboard() {
     fetchDeviceModels(1);
   }, []);
 
-  // 리뷰 통계 (실제 데이터에서 계산)
-  const reviewStats = {
-    total: 0,
-    blocked: 0,
-    averageRating: 0
-  };
 
   const deviceForm = useForm<Omit<DeviceModel, 'id' | 'createdAt'>>({
     defaultValues: {
@@ -212,96 +195,7 @@ export default function AdminDashboard() {
     }
   });
 
-  const handleUserBlock = (userId: string, block: boolean) => {
-    setUsers(users.map(user => 
-      user.id === userId 
-        ? { ...user, status: block ? 'blocked' : 'active' }
-        : user
-    ));
-  };
 
-  const handleStoreApproval = async (storeId: string, approve: boolean) => {
-    try {
-      const status = approve ? 'approved' : 'rejected';
-      
-      // 먼저 신청 정보를 가져와서 user_id 확인
-      const { data: application } = await supabase
-        .from('seller_applications')
-        .select('user_id, contact_email')
-        .eq('id', storeId)
-        .single();
-
-      if (!application) {
-        alert('신청 정보를 찾을 수 없습니다.');
-        return;
-      }
-
-      // seller_applications 테이블 업데이트
-      const { error } = await supabase
-        .from('seller_applications')
-        .update({
-          status,
-          reviewed_at: new Date().toISOString(),
-        })
-        .eq('id', storeId);
-
-      if (error) {
-        console.error('승인/거부 처리 실패:', error);
-        alert('처리에 실패했습니다: ' + error.message);
-        return;
-      }
-
-      // 승인된 경우 profiles 테이블의 is_active를 true로 업데이트
-      if (approve) {
-        try {
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .update({
-              is_active: true,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('user_id', application.user_id);
-
-          if (profileError) {
-            console.error('프로필 활성화 실패:', profileError);
-            // 프로필 업데이트 실패해도 승인은 완료된 것으로 처리
-          } else {
-            console.log('프로필 활성화 완료');
-          }
-        } catch (profileError) {
-          console.error('프로필 활성화 중 오류:', profileError);
-        }
-      }
-
-      // 로컬 상태 업데이트
-      setStores(stores.map(store => 
-        store.id === storeId 
-          ? { ...store, status: approve ? 'active' : 'blocked' }
-          : store
-      ));
-
-      alert(approve ? '승인되었습니다.' : '거부되었습니다.');
-    } catch (error) {
-      console.error('승인/거부 처리 오류:', error);
-      alert('처리 중 오류가 발생했습니다.');
-    }
-  };
-
-  const handleStoreBlock = (storeId: string, block: boolean) => {
-    setStores(stores.map(store => 
-      store.id === storeId 
-        ? { ...store, status: block ? 'blocked' : 'active' }
-        : store
-    ));
-  };
-
-  const handleProductBlock = (productId: string, block: boolean) => {
-    setProducts(products.map(product => 
-      product.id === productId 
-        ? { ...product, status: block ? 'blocked' : 'active' }
-        : product
-    ));
-  };
 
   // 이미지 업로드 관련 함수들
   const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -485,476 +379,335 @@ export default function AdminDashboard() {
     handleImageRemove();
   };
 
+  // DeviceManagementTab에서 사용할 핸들러들
+  const handleAddDevice = () => {
+    setIsDeviceDialogOpen(true);
+  };
+
+  const handleEditDevice = (device: DeviceModel) => {
+    handleDeviceEdit(device);
+  };
+
+  const handleDeleteDevice = (deviceId: string) => {
+    handleDeviceModelDelete(deviceId);
+  };
+
   const pendingStores = stores.filter(store => store.status === 'pending');
-  const blockedUsers = users.filter(user => user.status === 'blocked');
-  const blockedStores = stores.filter(store => store.status === 'blocked');
+
+  const menuItems = [
+    { id: 'home', label: '홈', icon: Shield, href: '/admin' },
+    { id: 'users', label: '회원 관리', icon: Users, href: '/admin/users' },
+    { id: 'stores', label: '매장 관리', icon: Store, href: '/admin/stores' },
+    { id: 'products', label: '상품 관리', icon: Package, href: '/admin/products' },
+    { id: 'reviews', label: '리뷰 관리', icon: MessageSquare, href: '/admin/reviews' },
+    { id: 'devices', label: '단말기 등록', icon: AlertTriangle, href: '/admin/devices' }
+  ];
+
+  const renderContent = () => {
+    switch (activeMenu) {
+      case 'home':
+        return (
+          <div className="space-y-6">
+            {/* Quick Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              <Card 
+                className="cursor-pointer hover:shadow-md transition-shadow"
+                onClick={() => router.push('/admin/users')}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-center space-x-2">
+                    <Users className="h-8 w-8 text-blue-500" />
+                    <div>
+                      <p className="text-2xl font-bold">0</p>
+                      <p className="text-xs text-muted-foreground">총 사용자</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              
+              <Card 
+                className="cursor-pointer hover:shadow-md transition-shadow"
+                onClick={() => router.push('/admin/stores')}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-center space-x-2">
+                    <Store className="h-8 w-8 text-green-500" />
+                    <div>
+                      <p className="text-2xl font-bold">{stores.filter(s => s.status === 'active').length}</p>
+                      <p className="text-xs text-muted-foreground">활성 매장</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              
+              <Card 
+                className="cursor-pointer hover:shadow-md transition-shadow"
+                onClick={() => router.push('/admin/stores')}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-center space-x-2">
+                    <AlertTriangle className="h-8 w-8 text-orange-500" />
+                    <div>
+                      <p className="text-2xl font-bold">{pendingStores.length}</p>
+                      <p className="text-xs text-muted-foreground">승인 대기</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              
+              <Card 
+                className="cursor-pointer hover:shadow-md transition-shadow"
+                onClick={() => router.push('/admin/products')}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-center space-x-2">
+                    <Package className="h-8 w-8 text-purple-500" />
+                    <div>
+                      <p className="text-2xl font-bold">{products.filter(p => p.status === 'active').length}</p>
+                      <p className="text-xs text-muted-foreground">활성 상품</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              
+              <Card 
+                className="cursor-pointer hover:shadow-md transition-shadow"
+                onClick={() => router.push('/admin/reviews')}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-center space-x-2">
+                    <MessageSquare className="h-8 w-8 text-yellow-500" />
+                    <div>
+                      <p className="text-2xl font-bold">0</p>
+                      <p className="text-xs text-muted-foreground">활성 리뷰</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Pending Stores Alert */}
+            {pendingStores.length > 0 && (
+              <Card className="border-orange-200 bg-orange-50">
+                <CardContent className="p-4">
+                  <div className="flex items-center space-x-2">
+                    <AlertTriangle className="h-5 w-5 text-orange-500" />
+                    <div>
+                      <p className="font-semibold text-orange-800">
+                        {pendingStores.length}개의 매장 승인 대기 중
+                      </p>
+                      <p className="text-sm text-orange-600">
+                        매장 관리에서 승인 처리를 진행해주세요.
+                      </p>
+                    </div>
+                    <Button 
+                      size="sm" 
+                      onClick={() => setActiveMenu('stores')}
+                      className="ml-auto"
+                    >
+                      확인하기
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        );
+      case 'users':
+        return <UserManagementTab />;
+      case 'stores':
+        return <StoreManagementTab />;
+      case 'products':
+        return <ProductManagementTab />;
+      case 'reviews':
+        return <ReviewManagementTab />;
+      case 'devices':
+        return (
+          <DeviceManagementTab 
+            onAddDevice={handleAddDevice}
+            onEditDevice={handleEditDevice}
+            onDeleteDevice={handleDeleteDevice}
+          />
+        );
+      default:
+        return (
+          <div className="space-y-6">
+            {/* Quick Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              <Card 
+                className="cursor-pointer hover:shadow-md transition-shadow"
+                onClick={() => router.push('/admin/users')}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-center space-x-2">
+                    <Users className="h-8 w-8 text-blue-500" />
+                    <div>
+                      <p className="text-2xl font-bold">0</p>
+                      <p className="text-xs text-muted-foreground">총 사용자</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              
+              <Card 
+                className="cursor-pointer hover:shadow-md transition-shadow"
+                onClick={() => router.push('/admin/stores')}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-center space-x-2">
+                    <Store className="h-8 w-8 text-green-500" />
+                    <div>
+                      <p className="text-2xl font-bold">{stores.filter(s => s.status === 'active').length}</p>
+                      <p className="text-xs text-muted-foreground">활성 매장</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              
+              <Card 
+                className="cursor-pointer hover:shadow-md transition-shadow"
+                onClick={() => router.push('/admin/stores')}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-center space-x-2">
+                    <AlertTriangle className="h-8 w-8 text-orange-500" />
+                    <div>
+                      <p className="text-2xl font-bold">{pendingStores.length}</p>
+                      <p className="text-xs text-muted-foreground">승인 대기</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              
+              <Card 
+                className="cursor-pointer hover:shadow-md transition-shadow"
+                onClick={() => router.push('/admin/products')}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-center space-x-2">
+                    <Package className="h-8 w-8 text-purple-500" />
+                    <div>
+                      <p className="text-2xl font-bold">{products.filter(p => p.status === 'active').length}</p>
+                      <p className="text-xs text-muted-foreground">활성 상품</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              
+              <Card 
+                className="cursor-pointer hover:shadow-md transition-shadow"
+                onClick={() => router.push('/admin/reviews')}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-center space-x-2">
+                    <MessageSquare className="h-8 w-8 text-yellow-500" />
+                    <div>
+                      <p className="text-2xl font-bold">0</p>
+                      <p className="text-xs text-muted-foreground">활성 리뷰</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Pending Stores Alert */}
+            {pendingStores.length > 0 && (
+              <Card className="border-orange-200 bg-orange-50">
+                <CardContent className="p-4">
+                  <div className="flex items-center space-x-2">
+                    <AlertTriangle className="h-5 w-5 text-orange-500" />
+                    <div>
+                      <p className="font-semibold text-orange-800">
+                        {pendingStores.length}개의 매장 승인 대기 중
+                      </p>
+                      <p className="text-sm text-orange-600">
+                        매장 관리에서 승인 처리를 진행해주세요.
+                      </p>
+                    </div>
+                    <Button 
+                      size="sm" 
+                      onClick={() => setActiveMenu('stores')}
+                      className="ml-auto"
+                    >
+                      확인하기
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        );
+    }
+  };
 
   return (
-    <div className="container mx-auto p-4 space-y-6">
+    <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center space-x-2">
-            <Shield className="h-6 w-6" />
-            <span>관리자 대시보드</span>
-          </h1>
-          <p className="text-muted-foreground">시스템 전체 관리</p>
-        </div>
-        
-        {pendingStores.length > 0 && (
-          <Badge variant="destructive" className="flex items-center space-x-1">
-            <AlertTriangle className="h-3 w-3" />
-            <span>{pendingStores.length}개 승인 대기</span>
-          </Badge>
-        )}
-      </div>
-
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Users className="h-8 w-8 text-blue-500" />
-              <div>
-                <p className="text-2xl font-bold">{users.length}</p>
-                <p className="text-xs text-muted-foreground">총 사용자</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Store className="h-8 w-8 text-green-500" />
-              <div>
-                <p className="text-2xl font-bold">{stores.filter(s => s.status === 'active').length}</p>
-                <p className="text-xs text-muted-foreground">활성 매장</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Package className="h-8 w-8 text-purple-500" />
-              <div>
-                <p className="text-2xl font-bold">{products.filter(p => p.status === 'active').length}</p>
-                <p className="text-xs text-muted-foreground">활성 상품</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <MessageSquare className="h-8 w-8 text-yellow-500" />
-              <div>
-                <p className="text-2xl font-bold">{reviewStats.total - reviewStats.blocked}</p>
-                <p className="text-xs text-muted-foreground">활성 리뷰</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <AlertTriangle className="h-8 w-8 text-orange-500" />
-              <div>
-                <p className="text-2xl font-bold">{pendingStores.length}</p>
-                <p className="text-xs text-muted-foreground">승인 대기</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Tabs defaultValue="users" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="users">회원 관리</TabsTrigger>
-          <TabsTrigger value="stores">매장 관리</TabsTrigger>
-          <TabsTrigger value="products">상품 관리</TabsTrigger>
-          <TabsTrigger value="reviews">리뷰 관리</TabsTrigger>
-          <TabsTrigger value="devices">단말기 등록</TabsTrigger>
-        </TabsList>
-
-        {/* User Management */}
-        <TabsContent value="users" className="space-y-4">
-          <div className="flex justify-between items-center">
-            <h3 className="text-lg font-semibold">회원 목록 ({users.length})</h3>
-            <div className="flex space-x-2">
-              <Badge variant="outline">{blockedUsers.length}명 차단됨</Badge>
-            </div>
-          </div>
-
-          <Card>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>이름</TableHead>
-                  <TableHead>이메일</TableHead>
-                  <TableHead>연락처</TableHead>
-                  <TableHead>역할</TableHead>
-                  <TableHead>상태</TableHead>
-                  <TableHead>가입일</TableHead>
-                  <TableHead>최근 접속</TableHead>
-                  <TableHead>관리</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {users.map((user) => (
-                  <TableRow key={user.id}>
-                    <TableCell className="font-medium">{user.name}</TableCell>
-                    <TableCell>{user.email}</TableCell>
-                    <TableCell>{user.phone}</TableCell>
-                    <TableCell>
-                      <Badge variant={user.role === 'seller' ? 'default' : 'secondary'}>
-                        {user.role === 'seller' ? '판매자' : '사용자'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={user.status === 'active' ? 'default' : 'destructive'}>
-                        {user.status === 'active' ? '활성' : '차단'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{user.createdAt}</TableCell>
-                    <TableCell>{user.lastLogin}</TableCell>
-                    <TableCell>
-                      <div className="flex space-x-1">
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handleUserBlock(user.id, user.status === 'active')}
-                        >
-                          {user.status === 'active' ? (
-                            <Ban className="h-4 w-4" />
-                          ) : (
-                            <UserCheck className="h-4 w-4" />
-                          )}
-                        </Button>
-                        <Button variant="outline" size="sm">
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Card>
-        </TabsContent>
-
-        {/* Store Management */}
-        <TabsContent value="stores" className="space-y-4">
-          <div className="flex justify-between items-center">
-            <h3 className="text-lg font-semibold">
-              매장 목록 ({isLoading ? '로딩 중...' : stores.length})
-            </h3>
-            <div className="flex space-x-2">
-              <Badge variant="destructive">{pendingStores.length}개 승인 대기</Badge>
-              <Badge variant="outline">{blockedStores.length}개 차단됨</Badge>
-            </div>
-          </div>
-
-          <Card>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>매장명</TableHead>
-                  <TableHead>사업자</TableHead>
-                  <TableHead>이메일</TableHead>
-                  <TableHead>연락처</TableHead>
-                  <TableHead>사업자번호</TableHead>
-                  <TableHead>상태</TableHead>
-                  <TableHead>신청일</TableHead>
-                  <TableHead>관리</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {stores.map((store) => (
-                  <TableRow key={store.id}>
-                    <TableCell className="font-medium">{store.name}</TableCell>
-                    <TableCell>{store.ownerName}</TableCell>
-                    <TableCell>{store.email}</TableCell>
-                    <TableCell>{store.phone}</TableCell>
-                    <TableCell>{store.businessNumber}</TableCell>
-                    <TableCell>
-                      <Badge 
-                        variant={
-                          store.status === 'active' ? 'default' : 
-                          store.status === 'pending' ? 'secondary' : 'destructive'
-                        }
-                      >
-                        {store.status === 'active' ? '승인됨' : 
-                         store.status === 'pending' ? '승인 대기' : '차단됨'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{store.createdAt}</TableCell>
-                    <TableCell>
-                      <div className="flex space-x-1">
-                        {store.status === 'pending' && (
-                          <>
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => handleStoreApproval(store.id, true)}
-                            >
-                              <CheckCircle className="h-4 w-4" />
-                            </Button>
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => handleStoreApproval(store.id, false)}
-                            >
-                              <XCircle className="h-4 w-4" />
-                            </Button>
-                          </>
-                        )}
-                        {store.status === 'active' && (
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => handleStoreBlock(store.id, true)}
-                          >
-                            <Ban className="h-4 w-4" />
-                          </Button>
-                        )}
-                        {store.status === 'blocked' && (
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => handleStoreBlock(store.id, false)}
-                          >
-                            <UserCheck className="h-4 w-4" />
-                          </Button>
-                        )}
-                        <Button variant="outline" size="sm">
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Card>
-        </TabsContent>
-
-        {/* Product Management */}
-        <TabsContent value="products" className="space-y-4">
-          <div className="flex justify-between items-center">
-            <h3 className="text-lg font-semibold">상품 목록 ({products.length})</h3>
-            <Badge variant="outline">
-              {products.filter(p => p.status === 'blocked').length}개 차단됨
-            </Badge>
-          </div>
-
-          <Card>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>상품명</TableHead>
-                  <TableHead>매장</TableHead>
-                  <TableHead>통신사</TableHead>
-                  <TableHead>용량</TableHead>
-                  <TableHead>가격</TableHead>
-                  <TableHead>상태</TableHead>
-                  <TableHead>등록일</TableHead>
-                  <TableHead>관리</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {products.map((product) => (
-                  <TableRow key={product.id}>
-                    <TableCell className="font-medium">{product.deviceName}</TableCell>
-                    <TableCell>{product.storeName}</TableCell>
-                    <TableCell>{product.carrier}</TableCell>
-                    <TableCell>{product.storage}</TableCell>
-                    <TableCell>{product.price.toLocaleString()}원</TableCell>
-                    <TableCell>
-                      <Badge variant={product.status === 'active' ? 'default' : 'destructive'}>
-                        {product.status === 'active' ? '활성' : '차단'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{product.createdAt?.toLocaleDateString() || 'N/A'}</TableCell>
-                    <TableCell>
-                      <div className="flex space-x-1">
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handleProductBlock(product.id, product.status === 'active')}
-                        >
-                          {product.status === 'active' ? (
-                            <Ban className="h-4 w-4" />
-                          ) : (
-                            <UserCheck className="h-4 w-4" />
-                          )}
-                        </Button>
-                        <Button variant="outline" size="sm">
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Card>
-        </TabsContent>
-
-        {/* Review Management */}
-        <TabsContent value="reviews">
-          <ReviewManagement />
-        </TabsContent>
-
-        {/* Device Model Management */}
-        <TabsContent value="devices" className="space-y-4">
-          <div className="flex justify-between items-center">
-            <h3 className="text-lg font-semibold">단말기 ({totalCount})</h3>
-            <Button onClick={() => setIsDeviceDialogOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              단말기 추가
+      <div className="container mx-auto px-4 py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="md:hidden"
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            >
+              {isMobileMenuOpen ? <XIcon className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </Button>
+            <div>
+              <h1 className="text-2xl font-bold flex items-center space-x-2">
+                <Shield className="h-6 w-6" />
+                <span>ADMIN</span>
+              </h1>
+              <p className="text-muted-foreground">시스템 전체 관리</p>
+            </div>
           </div>
-
-          <Card>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>이미지</TableHead>
-                  <TableHead>제조사</TableHead>
-                  <TableHead>모델명</TableHead>
-                  <TableHead>지원 통신사</TableHead>
-                  <TableHead>지원 용량</TableHead>
-                  <TableHead>등록일</TableHead>
-                  <TableHead>관리</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {(deviceModels || []).length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8">
-                      <div className="flex flex-col items-center space-y-2">
-                        <ImageIcon className="h-12 w-12 text-gray-400" />
-                        <p className="text-gray-500">등록된 단말기가 없습니다</p>
-                        <p className="text-sm text-gray-400">
-                          {isLoading ? '데이터를 불러오는 중...' : '새로운 단말기를 추가해보세요'}
-                        </p>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  (deviceModels || []).map((device) => (
-                  <TableRow key={device.id}>
-                    <TableCell>
-                      <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center">
-                        {device.imageUrl ? (
-                          <img 
-                            src={device.imageUrl} 
-                            alt={device.deviceName}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <ImageIcon className="h-6 w-6 text-gray-400" />
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>{MANUFACTURER_LABELS[device.manufacturer as keyof typeof MANUFACTURER_LABELS] || device.manufacturer || '알 수 없음'}</TableCell>
-                    <TableCell className="font-medium">{device.deviceName}</TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        {(device.supportedCarriers || []).map((carrier) => (
-                          <Badge key={carrier} variant="outline" className="text-xs">
-                            {CARRIER_LABELS[carrier as keyof typeof CARRIER_LABELS] || carrier}
-                          </Badge>
-                        ))}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        {(device.supportedStorage || []).map((size) => (
-                          <Badge key={size} variant="secondary" className="text-xs">
-                            {STORAGE_LABELS[size as keyof typeof STORAGE_LABELS] || size}
-                          </Badge>
-                        ))}
-                      </div>
-                    </TableCell>
-                    <TableCell>{device.createdAt}</TableCell>
-                    <TableCell>
-                      <div className="flex space-x-1">
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handleDeviceEdit(device)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handleDeviceModelDelete(device.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </Card>
           
-          {/* 페이지네이션 */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between px-4 py-3 border-t">
-              <div className="text-sm text-muted-foreground">
-                {totalCount}개 중 {((currentPage - 1) * pageSize) + 1}-{Math.min(currentPage * pageSize, totalCount)}개 표시
-              </div>
-              <div className="flex items-center space-x-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => fetchDeviceModels(currentPage - 1)}
-                  disabled={currentPage <= 1 || isLoading}
-                >
-                  이전
-                </Button>
-                
-                <div className="flex items-center space-x-1">
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    const pageNum = Math.max(1, Math.min(totalPages - 4, currentPage - 2)) + i;
+          {pendingStores.length > 0 && (
+            <Badge variant="destructive" className="flex items-center space-x-1">
+              <AlertTriangle className="h-3 w-3" />
+              <span>{pendingStores.length}개 승인 대기</span>
+            </Badge>
+          )}
+        </div>
+      </div>
+
+      <div className="container mx-auto px-4 py-6">
+        <div className="flex flex-col md:flex-row gap-6">
+          {/* Sidebar Menu */}
+          <div className={`${isMobileMenuOpen ? 'block' : 'hidden'} md:block w-full md:w-64 lg:w-64`}>
+            <div className="bg-white rounded-lg shadow-sm p-4 space-y-2">
+              {menuItems.map((item) => {
+                const Icon = item.icon;
                     return (
-                      <Button
-                        key={pageNum}
-                        variant={currentPage === pageNum ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => fetchDeviceModels(pageNum)}
-                        disabled={isLoading}
-                        className="w-8 h-8 p-0"
-                      >
-                        {pageNum}
-                      </Button>
+                  <Button
+                    key={item.id}
+                    variant={activeMenu === item.id ? 'default' : 'ghost'}
+                    className="w-full justify-start"
+                    onClick={() => {
+                      if (item.id === 'home') {
+                        setActiveMenu('home');
+                      } else {
+                        router.push(item.href);
+                      }
+                      setIsMobileMenuOpen(false);
+                    }}
+                  >
+                    <Icon className="h-4 w-4 mr-2" />
+                    {item.label}
+                  </Button>
                     );
                   })}
+            </div>
                 </div>
                 
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => fetchDeviceModels(currentPage + 1)}
-                  disabled={currentPage >= totalPages || isLoading}
-                >
-                  다음
-                </Button>
+          {/* Main Content */}
+          <div className="flex-1">
+            {renderContent()}
               </div>
             </div>
-          )}
-        </TabsContent>
-      </Tabs>
+      </div>
+
 
       {/* Device Model Add Dialog */}
       <Dialog open={isDeviceDialogOpen} onOpenChange={handleDialogClose}>

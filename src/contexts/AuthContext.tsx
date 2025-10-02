@@ -468,7 +468,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (profile?.login_type === 'kakao') {
         try {
           const { logoutWithKakao } = await import('@/lib/kakao');
-          logoutWithKakao();
+          await logoutWithKakao();
           console.log('카카오 로그아웃 완료');
         } catch (kakaoError) {
           console.warn('카카오 로그아웃 중 오류 (무시됨):', kakaoError);

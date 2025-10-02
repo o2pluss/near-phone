@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -17,7 +18,8 @@ import {
   Search,
   Filter,
   User,
-  Smartphone
+  Smartphone,
+  ArrowLeft
 } from 'lucide-react';
 import { ReservationWithReview } from '../../types/review';
 import { maskUserName } from '../../utils/privacy';
@@ -242,6 +244,7 @@ interface ReviewManagementProps {
 }
 
 export default function ReviewManagement({}: ReviewManagementProps) {
+  const router = useRouter();
   const [reservationsWithReviews, setReservationsWithReviews] = useState<AdminReservationWithReview[]>(mockReservationsWithReviews);
   const [selectedReservation, setSelectedReservation] = useState<AdminReservationWithReview | null>(null);
   
@@ -408,6 +411,26 @@ export default function ReviewManagement({}: ReviewManagementProps) {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-4">
+          <Button 
+            variant="ghost" 
+            size="sm"
+            onClick={() => router.push('/admin')}
+            className="flex items-center space-x-2 p-2"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold">
+              리뷰 관리
+            </h1>
+            <p className="text-muted-foreground">리뷰 및 예약 관리</p>
+          </div>
+        </div>
+      </div>
+
       {/* 필터 섹션 */}
       <Card>
         <CardHeader>

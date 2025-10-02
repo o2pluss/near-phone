@@ -93,7 +93,7 @@ export async function middleware(req: NextRequest) {
   // 권한별 라우트 정의
   const userRoutes = ['/favorites', '/reservations', '/mypage', '/reviews'];
   const sellerRoutes = ['/seller', '/store-management', '/store-edit', '/schedule', '/reservation-detail'];
-  const adminRoutes = ['/admin'];
+  const adminRoutes = ['/admin', '/admin/users', '/admin/stores', '/admin/products', '/admin/reviews', '/admin/devices'];
   const publicRoutes = ['/auth/login', '/auth/signup', '/auth/kakao/callback', '/api/kakao', '/pending-approval', '/unauthorized', '/test-middleware', '/', '/main', '/search', '/detail'];
 
   const { pathname } = req.nextUrl;

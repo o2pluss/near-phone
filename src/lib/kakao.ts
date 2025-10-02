@@ -140,9 +140,67 @@ export const loginWithKakao = async () => {
   }
 };
 
+// 카카오 액세스 토큰 유효성 검사
+export const isKakaoTokenValid = async (): Promise<boolean> => {
+  if (typeof window === 'undefined' || !window.Kakao || !window.Kakao.isInitialized()) {
+    return false;
+  }
+
+  try {
+    const accessToken = window.Kakao.Auth.getAccessToken();
+    if (!accessToken) {
+      return false;
+    }
+
+    // 카카오 API를 통해 토큰 유효성 검사
+    const response = await fetch('https://kapi.kakao.com/v1/user/access_token_info', {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+      },
+    });
+
+    return response.ok;
+  } catch (error) {
+    console.warn('카카오 토큰 유효성 검사 실패:', error);
+    return false;
+  }
+};
+
 // 카카오 로그아웃
-export const logoutWithKakao = () => {
-  if (typeof window !== 'undefined' && window.Kakao) {
-    window.Kakao.Auth.logout();
+export const logoutWithKakao = async () => {
+  if (typeof window !== 'undefined' && window.Kakao && window.Kakao.isInitialized()) {
+    try {
+      // 먼저 토큰 유효성 검사
+      const isTokenValid = await isKakaoTokenValid();
+      const accessToken = window.Kakao.Auth.getAccessToken();
+      
+      if (accessToken && isTokenValid) {
+        // 유효한 토큰이 있으면 로그아웃 API 호출
+        try {
+          await window.Kakao.Auth.logout();
+          console.log('카카오 로그아웃 성공');
+        } catch (logoutError) {
+          console.warn('카카오 로그아웃 API 오류 (무시됨):', logoutError);
+        }
+      } else if (accessToken && !isTokenValid) {
+        console.log('카카오 액세스 토큰이 만료됨, 로컬 정리만 수행');
+      } else {
+        console.log('카카오 액세스 토큰이 없음, 로컬 정리만 수행');
+      }
+      
+      // 로컬에서 토큰 정리 (API 오류와 관계없이)
+      window.Kakao.Auth.setAccessToken('');
+      
+    } catch (error) {
+      console.warn('카카오 로그아웃 중 오류 (무시됨):', error);
+      // 오류가 발생해도 로컬에서 토큰 제거
+      try {
+        window.Kakao.Auth.setAccessToken('');
+      } catch (clearError) {
+        console.warn('토큰 정리 중 오류:', clearError);
+      }
+    }
+  } else {
+    console.log('카카오 SDK가 초기화되지 않음, 로그아웃 건너뜀');
   }
 };
