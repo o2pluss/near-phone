@@ -18,6 +18,7 @@ import { StoreConditionChips } from "./StoreConditionChips";
 import { getFavoriteProductDisplay, getDeletedProductStyles } from "../utils/productDisplay";
 import { ProductStatusBadge } from "./ui/ProductStatusBadge";
 import { useFavorites } from "../contexts/FavoriteContext";
+import { useReviewStats } from "../hooks/useApi";
 
 interface Store {
   id: string;
@@ -154,14 +155,12 @@ export default function FavoriteStores({
         <div className="container mx-auto p-4 space-y-4">
           {/* Header */}
           <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-semibold flex items-center space-x-2">
-                <Heart className="h-5 w-5 text-red-500" />
-                <span>즐겨찾기</span>
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                {favoriteStores.length}개
-              </p>
+            <h2 className="flex items-center space-x-2 text-xl font-semibold">
+              <Heart className="h-5 w-5 text-red-500" />
+              <span>즐겨찾기</span>
+            </h2>
+            <div className="text-sm text-muted-foreground">
+              {favoriteStores.length}개
             </div>
           </div>
 
@@ -188,15 +187,7 @@ export default function FavoriteStores({
                     <div className="flex items-center justify-between mb-1">
                       <div className="flex items-center space-x-2">
                         <h3 className="font-semibold text-base">{store.name}</h3>
-                        <div className="flex items-center space-x-1">
-                          <Star className="h-3.5 w-3.5 fill-gray-300 text-gray-300" />
-                          <span className="text-sm font-medium">
-                            {store.rating}
-                          </span>
-                          <span className="text-sm text-muted-foreground">
-                            ({store.reviewCount})
-                          </span>
-                        </div>
+                        <StoreRating storeId={store.id} fallbackRating={store.rating} fallbackCount={store.reviewCount} />
                         <div className="text-sm text-muted-foreground">
                           • {store.distance}km
                         </div>
@@ -216,7 +207,7 @@ export default function FavoriteStores({
                     {/* Product & Price Info with Deletion Handling */}
                     <div className="flex items-center justify-between mb-2">
                       <div className={`text-sm ${productDisplay.isDeleted ? deletedStyles.textColor : 'text-muted-foreground'}`}>
-                        {productDisplay.carrier.toUpperCase()} {productDisplay.model} {productDisplay.storage}
+                        {productDisplay.carrier.toUpperCase()} · {productDisplay.model} · {productDisplay.storage}
                       </div>
                       <span className={`font-semibold text-lg ${productDisplay.isDeleted ? deletedStyles.textColor : ''}`}>
                         {productDisplay.price.toLocaleString()}원
@@ -245,6 +236,31 @@ export default function FavoriteStores({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// 매장 평점 컴포넌트 (실제 리뷰 데이터 연동)
+function StoreRating({ 
+  storeId, 
+  fallbackRating, 
+  fallbackCount 
+}: { 
+  storeId: string; 
+  fallbackRating: number; 
+  fallbackCount: number; 
+}) {
+  const { data: reviewStats } = useReviewStats(storeId, { enabled: !!storeId });
+
+  return (
+    <div className="flex items-center space-x-1">
+      <Star className="h-3.5 w-3.5 fill-gray-300 text-gray-300" />
+      <span className="text-sm font-medium">
+        {reviewStats?.averageRating?.toFixed(1) || fallbackRating}
+      </span>
+      <span className="text-sm text-muted-foreground">
+        ({reviewStats?.totalReviews || fallbackCount})
+      </span>
     </div>
   );
 }

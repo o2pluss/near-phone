@@ -45,7 +45,9 @@ export function InfiniteScroll<T>({
   getItemKey
 }: InfiniteScrollProps<T>) {
   
-  const [displayCount, setDisplayCount] = React.useState(initialDisplayCount);
+  const [displayCount, setDisplayCount] = React.useState(
+    Number.isNaN(initialDisplayCount) ? 15 : initialDisplayCount
+  );
   const sentinelRef = useRef<HTMLDivElement>(null);
   
   // 표시할 아이템들
@@ -59,7 +61,8 @@ export function InfiniteScroll<T>({
     
     // 로컬에서 더 보여줄 수 있는 경우
     if (hasMoreToShow) {
-      setDisplayCount(prev => Math.min(prev + loadMoreCount, items.length));
+      const safeLoadMoreCount = Number.isNaN(loadMoreCount) ? 15 : loadMoreCount;
+      setDisplayCount(prev => Math.min(prev + safeLoadMoreCount, items.length));
       return;
     }
     
@@ -145,7 +148,7 @@ export function InfiniteScroll<T>({
       )}
       
       {/* 진행 상황 표시 */}
-      {showProgressIndicator && items.length > initialDisplayCount && (
+      {showProgressIndicator && items.length > (Number.isNaN(initialDisplayCount) ? 15 : initialDisplayCount) && (
         <div className="text-center text-sm text-muted-foreground">
           {displayCount}개 / {hasMore ? `${items.length}+` : items.length}개
         </div>

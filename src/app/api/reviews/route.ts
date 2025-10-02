@@ -16,13 +16,7 @@ export async function GET(req: NextRequest) {
 
   let query = supabase
     .from('reviews')
-    .select(`
-      *,
-      profiles!reviews_user_id_fkey (
-        name,
-        role
-      )
-    `)
+    .select('*')
     .eq('status', 'active')
     .order('created_at', { ascending: false })
     .limit(limit);
@@ -33,10 +27,32 @@ export async function GET(req: NextRequest) {
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   
+  // 사용자 ID 목록 추출
+  const userIds = data?.map(review => review.user_id) ?? [];
+  const uniqueUserIds = [...new Set(userIds)];
+
+  // 사용자 프로필 정보 조회
+  const { data: profiles, error: profileError } = await supabaseService
+    .from('profiles')
+    .select('user_id, name')
+    .in('user_id', uniqueUserIds);
+
+  console.log('프로필 조회 결과:', { profiles, profileError, uniqueUserIds });
+
+  if (profileError) {
+    console.error('프로필 조회 오류:', profileError);
+  }
+
+  // 프로필 데이터를 Map으로 변환
+  const profileMap = new Map();
+  profiles?.forEach(profile => {
+    profileMap.set(profile.user_id, profile.name);
+  });
+
   // 데이터 변환 (profiles 정보를 userName으로 매핑)
   const transformedData = data?.map(review => ({
     ...review,
-    userName: review.profiles?.name || '익명',
+    userName: profileMap.get(review.user_id) || '익명',
     storeName: undefined // 필요시 stores 테이블과 JOIN
   })) ?? [];
 

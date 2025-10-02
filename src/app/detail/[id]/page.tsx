@@ -16,6 +16,7 @@ function DetailPageInner() {
   const productData = searchParams.get('productData');
   const fromReservation = searchParams.get('from') === 'reservation';
   const fromSearch = searchParams.get('from') === 'search';
+  const fromFavorites = searchParams.get('from') === 'favorites';
 
   // productData를 파싱해서 selectedProduct로 변환
   let selectedProduct = null;
@@ -38,6 +39,8 @@ function DetailPageInner() {
       const queryString = currentParams.toString();
       const url = queryString ? `/search?${queryString}` : '/search';
       router.push(url);
+    } else if (fromFavorites) {
+      router.push('/favorites'); // 즐겨찾기 페이지로 이동
     } else {
       router.push('/main'); // 기본적으로 메인 페이지로 이동
     }

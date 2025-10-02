@@ -45,9 +45,9 @@ export default function ReviewList({
   const sortedReviews = [...reviews].sort((a, b) => {
     switch (sortBy) {
       case "newest":
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       case "oldest":
-        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
       case "highest":
         return b.rating - a.rating;
       case "lowest":
@@ -65,7 +65,16 @@ export default function ReviewList({
   };
 
   const formatDate = (dateString: string) => {
+    if (!dateString) return '날짜 없음';
+    
     const date = new Date(dateString);
+    
+    // Invalid Date 체크
+    if (isNaN(date.getTime())) {
+      console.error('Invalid date:', dateString);
+      return '날짜 오류';
+    }
+    
     const year = date.getFullYear().toString().slice(-2); // 마지막 2자리
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
     const day = date.getDate().toString().padStart(2, '0');
@@ -124,7 +133,7 @@ export default function ReviewList({
             <div className="flex items-center space-x-2 mt-1">
               {renderStars(review.rating)}
               <span className="text-sm text-muted-foreground">
-                {formatDate(review.createdAt)}
+                {formatDate(review.created_at)}
               </span>
             </div>
           </div>

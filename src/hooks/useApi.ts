@@ -362,6 +362,8 @@ export function useFavoriteStores(
 
 // 즐겨찾기 추가/제거
 export function useFavoriteMutations(userId: string) {
+  const queryClient = useQueryClient();
+  
   const addFavorite = useMutation({
     mutationFn: async ({ storeId, productId, productSnapshot }: { 
       storeId: string; 
@@ -391,6 +393,11 @@ export function useFavoriteMutations(userId: string) {
       }
       return res.json();
     },
+    onSuccess: (data, variables) => {
+      // 즐겨찾기 관련 캐시 무효화
+      queryClient.invalidateQueries({ queryKey: ['favorites', userId] });
+      queryClient.invalidateQueries({ queryKey: ['favorite-status', variables.storeId, userId] });
+    },
   });
 
   const removeFavorite = useMutation({
@@ -406,6 +413,11 @@ export function useFavoriteMutations(userId: string) {
       });
       if (!res.ok) throw new Error('Failed to remove favorite');
       return res.json();
+    },
+    onSuccess: (data, variables) => {
+      // 즐겨찾기 관련 캐시 무효화
+      queryClient.invalidateQueries({ queryKey: ['favorites', userId] });
+      queryClient.invalidateQueries({ queryKey: ['favorite-status', variables, userId] });
     },
   });
 

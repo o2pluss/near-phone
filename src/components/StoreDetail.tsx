@@ -29,7 +29,8 @@ import {
   Share,
   ChevronLeft,
   ChevronRight,
-  Camera
+  Camera,
+  MessageSquare
 } from "lucide-react";
 import { getConditionStyle } from "../lib/conditionStyles";
 import ReviewList from "./ReviewList";
@@ -163,8 +164,16 @@ export default function StoreDetail({
   
   // 즐겨찾기 상태 (로컬 상태 + 서버 상태 조합)
   const [localFavoriteState, setLocalFavoriteState] = useState<boolean | null>(null);
-  const serverFavoriteState = favoriteStatusQuery.data?.isFavorite || false;
+  
+  // 서버 상태가 로딩 중이거나 없으면 기본값 false (하트 꺼진 상태)
+  const serverFavoriteState = favoriteStatusQuery.isLoading || !favoriteStatusQuery.data 
+    ? false 
+    : favoriteStatusQuery.data.isFavorite;
+    
   const isFavorite = localFavoriteState !== null ? localFavoriteState : serverFavoriteState;
+  
+  // 서버 상태 로딩 중이면 기본값 false 사용
+  const isLoadingFavoriteStatus = favoriteStatusQuery.isLoading;
   
   // 서버 상태가 변경되면 로컬 상태 초기화
   useEffect(() => {
@@ -172,6 +181,13 @@ export default function StoreDetail({
       setLocalFavoriteState(null);
     }
   }, [favoriteStatusQuery.data]);
+  
+  // 컴포넌트 마운트 시 즐겨찾기 상태 확인
+  useEffect(() => {
+    if (userId !== 'anonymous' && storeId) {
+      favoriteStatusQuery.refetch();
+    }
+  }, [userId, storeId]);
   
   // 리뷰 상태 관리
 
@@ -185,16 +201,26 @@ export default function StoreDetail({
       return;
     }
 
+    // 현재 서버 상태를 기준으로 새 상태 결정
+    const currentServerState = serverFavoriteState;
+    const newFavoriteState = !currentServerState;
+    
+    console.log('즐겨찾기 토글:', {
+      currentServerState,
+      newFavoriteState,
+      localFavoriteState,
+      isFavorite
+    });
+    
     // 로컬 상태를 먼저 업데이트 (즉시 UI 반영)
-    const newFavoriteState = !isFavorite;
     setLocalFavoriteState(newFavoriteState);
 
     try {
-      if (isFavorite) {
-        // 즐겨찾기 제거
+      if (currentServerState) {
+        // 현재 즐겨찾기 상태이므로 제거
         await removeFavorite.mutateAsync(storeId);
       } else {
-        // 즐겨찾기 추가
+        // 현재 즐겨찾기 상태가 아니므로 추가
         await addFavorite.mutateAsync({
           storeId,
           productId: productInfo?.id,
@@ -211,12 +237,22 @@ export default function StoreDetail({
         });
       }
       
-      // 성공 시 로컬 상태를 서버 상태와 동기화
+      // 성공 시 로컬 상태 초기화 (React Query가 자동으로 캐시 무효화)
       setLocalFavoriteState(null);
-    } catch (error) {
+    } catch (error: any) {
       console.error('즐겨찾기 토글 오류:', error);
-      // 실패 시 로컬 상태를 원래대로 롤백
-      setLocalFavoriteState(!newFavoriteState);
+      
+      // 409 오류 (이미 즐겨찾기에 있음) 처리
+      if (error?.message?.includes('Already in favorites') || error?.status === 409) {
+        console.log('이미 즐겨찾기에 있음 - 서버 상태와 동기화');
+        // 서버 상태를 다시 확인하고 동기화
+        favoriteStatusQuery.refetch();
+        setLocalFavoriteState(null);
+        return;
+      }
+      
+      // 다른 오류의 경우 롤백
+      setLocalFavoriteState(currentServerState);
       alert(error instanceof Error ? error.message : '즐겨찾기 처리 중 오류가 발생했습니다.');
     }
   };
@@ -285,7 +321,7 @@ export default function StoreDetail({
               variant="ghost"
               size="sm"
               onClick={toggleFavorite}
-              disabled={addFavorite.isPending || removeFavorite.isPending || favoriteStatusQuery.isLoading}
+              disabled={addFavorite.isPending || removeFavorite.isPending || isLoadingFavoriteStatus}
             >
               <Heart
                 className={`h-5 w-5 ${
@@ -390,11 +426,11 @@ export default function StoreDetail({
 
             <div className="flex items-center space-x-4 mt-3 text-sm text-muted-foreground">
               <div className="flex items-center space-x-1">
-                <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                <Star className="h-4 w-4 fill-gray-300 text-gray-300" />
                 <span className="font-medium">
-                  {store.rating || 0}
+                  {reviewStatsQuery.data?.averageRating?.toFixed(1) || store.rating || 0}
                 </span>
-                <span>({store.reviewCount || 0}명)</span>
+                <span>({reviewStatsQuery.data?.totalReviews || store.reviewCount || 0})</span>
               </div>
             </div>
           </div>
@@ -496,32 +532,66 @@ export default function StoreDetail({
 
           {/* Reviews Section */}
           <div className="pt-6 border-t">
-            <ReviewList
-              storeId={store.id}
-              reviews={reviewsQuery.data?.pages.flatMap((p: any) => p.items) ?? []}
-              reviewStats={reviewStatsQuery.data ?? {
-                totalReviews: 0,
-                averageRating: 0,
-                ratingDistribution: {
-                  5: 0,
-                  4: 0,
-                  3: 0,
-                  2: 0,
-                  1: 0
-                }
-              }}
-              currentUserId="user-1" // 현재 사용자 ID (실제로는 인증 상태에서 가져와야 함)
-              hasMore={reviewsQuery.hasNextPage ?? false}
-              onLoadMore={async () => {
-                if (reviewsQuery.hasNextPage) {
-                  await reviewsQuery.fetchNextPage();
-                }
-              }}
-              loading={reviewsQuery.isFetchingNextPage ?? false}
-              initialDisplayCount={3}
-              loadMoreCount={15} // 서버 페이지 크기 (15개)
-              enableInfiniteScroll={false} // 매장 상세에서는 Load More 버튼 방식 사용
-            />
+            {reviewsQuery.isLoading || reviewStatsQuery.isLoading ? (
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <MessageSquare className="h-5 w-5" />
+                  <h3 className="font-semibold">리뷰</h3>
+                </div>
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                  <p className="text-muted-foreground">리뷰를 불러오는 중...</p>
+                </div>
+              </div>
+            ) : reviewsQuery.error || reviewStatsQuery.error ? (
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <MessageSquare className="h-5 w-5" />
+                  <h3 className="font-semibold">리뷰</h3>
+                </div>
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">리뷰를 불러오는 중 오류가 발생했습니다.</p>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => {
+                      reviewsQuery.refetch();
+                      reviewStatsQuery.refetch();
+                    }}
+                    className="mt-2"
+                  >
+                    다시 시도
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <ReviewList
+                storeId={store.id}
+                reviews={reviewsQuery.data?.pages.flatMap((p: any) => p.items) ?? []}
+                reviewStats={reviewStatsQuery.data ?? {
+                  totalReviews: 0,
+                  averageRating: 0,
+                  ratingDistribution: {
+                    5: 0,
+                    4: 0,
+                    3: 0,
+                    2: 0,
+                    1: 0
+                  }
+                }}
+                currentUserId="user-1" // 현재 사용자 ID (실제로는 인증 상태에서 가져와야 함)
+                hasMore={reviewsQuery.hasNextPage ?? false}
+                onLoadMore={async () => {
+                  if (reviewsQuery.hasNextPage) {
+                    await reviewsQuery.fetchNextPage();
+                  }
+                }}
+                loading={reviewsQuery.isFetchingNextPage ?? false}
+                initialDisplayCount={3}
+                loadMoreCount={15} // 서버 페이지 크기 (15개)
+                enableInfiniteScroll={false} // 매장 상세에서는 Load More 버튼 방식 사용
+              />
+            )}
           </div>
         </div>
       </div>

@@ -46,7 +46,7 @@ export default function FavoritesPage() {
   }
 
   const handleStoreSelect = (store: any) => {
-    router.push(`/detail/${store.id}`);
+    router.push(`/detail/${store.id}?from=favorites`);
   };
 
   return (
