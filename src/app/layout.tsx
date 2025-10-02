@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 
 import "./globals.css";
-import "@/index.css";
 import ReactQueryClientProvider from "../components/ReactQueryClientProvider";
 import { AuthProvider } from "@/contexts/AuthContext";
 import FavoriteProviderWrapper from "@/components/FavoriteProviderWrapper";
