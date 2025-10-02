@@ -5,6 +5,7 @@ import { Card, CardContent } from "../ui/card";
 import { Button } from "../ui/button";
 import { Users, CalendarDays } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { InlineLoadingSpinner } from "../ui/loading-spinner";
 import { useReservationList, useUpdateReservationStatus } from "../../hooks/useReservationList";
 import { transformApiReservationsToReservations } from "../../utils/reservationDataTransform";
 import ReservationStats from "./ReservationStats";
@@ -248,7 +249,7 @@ export default function ReservationManagementWithData({}: ReservationManagementW
                 >
                   {isFetchingNextPage ? (
                     <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900 mr-2"></div>
+                      <InlineLoadingSpinner />
                       불러오는 중...
                     </>
                   ) : (

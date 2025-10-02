@@ -14,6 +14,7 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from('device_models')
       .select('*', { count: 'exact' })
+      .eq('is_deleted', false) // 삭제되지 않은 항목만 조회
       .order('created_at', { ascending: false });
 
     // 필터링 조건 적용

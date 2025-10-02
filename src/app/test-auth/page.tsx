@@ -4,20 +4,14 @@ import { useAuth } from '@/hooks/useAuth';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, User, Mail, Phone, Shield } from 'lucide-react';
+import { User, Mail, Phone, Shield } from 'lucide-react';
+import { PageLoadingSpinner } from '@/components/ui/loading-spinner';
 
 export default function TestAuthPage() {
   const { user, profile, loading, signOut } = useAuth();
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto" />
-          <p className="text-muted-foreground">로딩 중...</p>
-        </div>
-      </div>
-    );
+    return <PageLoadingSpinner text="로딩 중..." />;
   }
 
   return (

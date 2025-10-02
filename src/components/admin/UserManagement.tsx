@@ -15,9 +15,9 @@ import {
   ArrowLeft,
   Search,
   ChevronLeft,
-  ChevronRight,
-  Loader2
+  ChevronRight
 } from 'lucide-react';
+import { InlineLoadingSpinner } from '../ui/loading-spinner';
 
 interface User {
   id: string;
@@ -237,7 +237,7 @@ export default function UserManagement() {
                 </SelectContent>
               </Select>
               <Button onClick={handleSearch} disabled={loading}>
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                {loading ? <InlineLoadingSpinner /> : <Search className="h-4 w-4" />}
               </Button>
               <Button variant="outline" onClick={handleResetFilters}>
                 초기화
@@ -269,8 +269,7 @@ export default function UserManagement() {
         <Card>
           {loading ? (
             <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin" />
-              <span className="ml-2">로딩 중...</span>
+              <InlineLoadingSpinner text="로딩 중..." />
             </div>
           ) : users.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">

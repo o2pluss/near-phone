@@ -11,6 +11,7 @@ import {
 } from './dialog';
 import { Button } from './button';
 import { AlertTriangle } from 'lucide-react';
+import { ButtonLoadingSpinner } from './loading-spinner';
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -73,7 +74,14 @@ export function ConfirmDialog({
             onClick={handleConfirm}
             disabled={loading}
           >
-            {loading ? '처리 중...' : confirmText}
+            {loading ? (
+              <>
+                <ButtonLoadingSpinner />
+                처리 중...
+              </>
+            ) : (
+              confirmText
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

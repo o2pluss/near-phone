@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { PageLoadingSpinner } from '../ui/loading-spinner';
 
 interface DeletedItem {
   id: string;
@@ -78,7 +79,9 @@ export default function DeletedItemsManager({ type }: DeletedItemsManagerProps) 
       </h2>
 
       {loading ? (
-        <div className="text-center py-8">로딩 중...</div>
+        <div className="text-center py-8">
+          <PageLoadingSpinner text="로딩 중..." />
+        </div>
       ) : (
         <>
           <div className="overflow-x-auto">

@@ -141,43 +141,54 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const supabase = createServerSupabaseClient();
-    // 먼저 해당 레코드가 존재하는지 확인
-    const { data: existingRecord, error: checkError } = await supabase
-      .from('device_models')
-      .select('id')
-      .eq('id', params.id)
-      .single();
+    const deviceId = params.id;
+    const body = await request.json();
+    const { deletionType = 'soft_delete' } = body;
 
-    if (checkError) {
-      if (checkError.code === 'PGRST116') {
+    if (!deviceId) {
+      return NextResponse.json(
+        { error: '단말기 ID가 필요합니다.' },
+        { status: 400 }
+      );
+    }
+
+    // 삭제 타입에 따른 처리
+    if (deletionType === 'soft_delete') {
+      const { softDeleteDeviceModel } = await import('@/lib/api/deviceModels');
+      const result = await softDeleteDeviceModel(deviceId);
+      
+      if (!result.success) {
         return NextResponse.json(
-          { error: '단말기 모델을 찾을 수 없습니다.' },
-          { status: 404 }
+          { error: result.message },
+          { status: 500 }
         );
       }
-      console.error('단말기 모델 조회 실패:', checkError);
+      
+      return NextResponse.json({ 
+        message: result.message,
+        deletionType: 'soft'
+      });
+    } else if (deletionType === 'force_delete') {
+      const { forceDeleteDeviceModel } = await import('@/lib/api/deviceModels');
+      const result = await forceDeleteDeviceModel(deviceId);
+      
+      if (!result.success) {
+        return NextResponse.json(
+          { error: result.message },
+          { status: 500 }
+        );
+      }
+      
+      return NextResponse.json({ 
+        message: result.message,
+        deletionType: 'force'
+      });
+    } else {
       return NextResponse.json(
-        { error: '단말기 모델 조회에 실패했습니다.' },
-        { status: 500 }
+        { error: '잘못된 삭제 타입입니다.' },
+        { status: 400 }
       );
     }
-
-    // 레코드 삭제
-    const { error } = await supabase
-      .from('device_models')
-      .delete()
-      .eq('id', params.id);
-
-    if (error) {
-      console.error('단말기 모델 삭제 실패:', error);
-      return NextResponse.json(
-        { error: '단말기 모델 삭제에 실패했습니다.' },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({ message: '단말기 모델이 삭제되었습니다.' });
   } catch (error) {
     console.error('API 오류:', error);
     return NextResponse.json(

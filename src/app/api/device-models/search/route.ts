@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
     const { data, error } = await supabase
       .from('device_models')
       .select('*')
+      .eq('is_deleted', false) // 삭제되지 않은 항목만 조회
       .or(`model.ilike.%${model}%,manufacturer.ilike.%${model}%`)
       .order('created_at', { ascending: false });
 

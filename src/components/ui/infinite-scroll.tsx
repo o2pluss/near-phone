@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useCallback } from 'react';
 import { Button } from './button';
+import { InlineLoadingSpinner } from './loading-spinner';
 
 interface InfiniteScrollProps<T> {
   items: T[];
@@ -124,10 +125,7 @@ export function InfiniteScroll<T>({
       {/* 로딩 인디케이터 */}
       {loading && (
         <div className="text-center py-4">
-          <div className="flex items-center justify-center space-x-2 text-muted-foreground">
-            <div className="w-4 h-4 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin"></div>
-            <span className="text-sm">{loadingText}</span>
-          </div>
+          <InlineLoadingSpinner text={loadingText} />
         </div>
       )}
       

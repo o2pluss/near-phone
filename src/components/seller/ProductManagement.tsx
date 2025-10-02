@@ -4,6 +4,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { Checkbox } from "../ui/checkbox";
+import { PageLoadingSpinner } from "../ui/loading-spinner";
 
 import { 
   Select,
@@ -481,10 +482,7 @@ export default function ProductManagement() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-muted-foreground">상품 데이터를 불러오는 중...</p>
-        </div>
+        <PageLoadingSpinner text="상품 데이터를 불러오는 중..." />
       </div>
     );
   }

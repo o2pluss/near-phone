@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import { PageLoadingSpinner } from "../ui/loading-spinner";
 import { 
   Select,
   SelectContent,
@@ -211,10 +212,7 @@ export default function ProductTableManagement() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">상품 테이블을 불러오는 중...</p>
-        </div>
+        <PageLoadingSpinner text="상품 테이블을 불러오는 중..." />
       </div>
     );
   }

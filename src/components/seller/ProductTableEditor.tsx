@@ -8,6 +8,7 @@ import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Badge } from "../ui/badge";
 import { Checkbox } from "../ui/checkbox";
+import { PageLoadingSpinner } from "../ui/loading-spinner";
 import {
   Table,
   TableBody,
@@ -1393,10 +1394,7 @@ export default function ProductTableEditor({
   if (isCheckingAuth) {
     return (
       <div className="flex items-center justify-center py-8">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">인증 상태를 확인하는 중...</p>
-        </div>
+        <PageLoadingSpinner text="인증 상태를 확인하는 중..." />
       </div>
     );
   }

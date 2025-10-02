@@ -4,8 +4,9 @@ import ReviewManagement from '@/components/seller/ReviewManagement';
 import SellerDashboardMain from '@/components/seller/SellerDashboardMain';
 import SellerPageHeader from '@/components/seller/SellerPageHeader';
 import { useCurrentStore } from '@/hooks/useCurrentStore';
-import { Loader2, AlertCircle } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { PageLoadingSpinner } from '@/components/ui/loading-spinner';
 
 export default function ReviewsPage() {
   const { storeInfo, loading, error } = useCurrentStore();
@@ -14,10 +15,8 @@ export default function ReviewsPage() {
     return (
       <SellerDashboardMain>
         <SellerPageHeader title="리뷰 관리" />
-        <div className="p-8 text-center">
-          <Loader2 className="h-12 w-12 text-muted-foreground mx-auto mb-4 animate-spin" />
-          <h3 className="font-semibold text-lg mb-2">매장 정보를 불러오는 중...</h3>
-          <p className="text-muted-foreground">잠시만 기다려주세요.</p>
+        <div className="p-8">
+          <PageLoadingSpinner text="매장 정보를 불러오는 중..." />
         </div>
       </SellerDashboardMain>
     );

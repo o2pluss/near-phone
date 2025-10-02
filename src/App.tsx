@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { QueryProvider } from './providers/QueryProvider';
 import { useAuth } from './hooks/useAuth';
+import { PageLoadingSpinner } from './components/ui/loading-spinner';
 
 function AppContent() {
   const { user, profile, loading } = useAuth();
@@ -43,12 +44,7 @@ function AppContent() {
   }, [user, profile, loading]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="text-center space-y-4">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
-        <p className="text-muted-foreground">페이지를 이동하는 중...</p>
-      </div>
-    </div>
+    <PageLoadingSpinner text="페이지를 이동하는 중..." />
   );
 }
 

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Plus, AlertCircle, Edit } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { StoreInfo, getCurrentUserStore, getSellerApplication } from "@/lib/store";
+import { PageLoadingSpinner } from "@/components/ui/loading-spinner";
 
 export default function StoreManagementPage() {
   const router = useRouter();
@@ -55,10 +56,7 @@ export default function StoreManagementPage() {
     return (
       <div className="p-6">
         <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">매장 정보를 불러오는 중...</p>
-          </div>
+          <PageLoadingSpinner text="매장 정보를 불러오는 중..." />
         </div>
       </div>
     );

@@ -5,6 +5,7 @@ import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { Separator } from "../ui/separator";
 import { ChevronLeft } from "lucide-react";
+import { PageLoadingSpinner } from "../ui/loading-spinner";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -268,10 +269,7 @@ export default function ReservationDetail({ reservationId, onBack }: Reservation
   if (isLoading) {
     return (
       <div className="h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-4"></div>
-          <p>예약 정보를 불러오는 중...</p>
-        </div>
+        <PageLoadingSpinner text="예약 정보를 불러오는 중..." />
       </div>
     );
   }

@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { LocateFixedIcon } from 'lucide-react';
 import { Button } from './ui/button';
 import { NaverMapOptions, NaverLatLng, NaverMarkerOptions } from '../types/naver-maps';
+import { PageLoadingSpinner } from './ui/loading-spinner';
 
 interface MapStore {
   id: string;
@@ -365,10 +366,7 @@ export default function NaverMapWithSearch({
         />
         {!isLoaded && (
           <div className="flex items-center justify-center bg-gray-100" style={{ height: '100%' }}>
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-              <p className="text-gray-600">지도를 불러오는 중...</p>
-            </div>
+            <PageLoadingSpinner text="지도를 불러오는 중..." />
           </div>
         )}
         

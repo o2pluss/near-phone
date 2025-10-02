@@ -32,6 +32,7 @@ import { useReservationList, useUpdateReservationStatus } from "../hooks/useRese
 import { transformApiReservationsToReservations } from "../utils/reservationDataTransform";
 import type { Reservation } from "../types/reservation";
 import { useRouter } from "next/navigation";
+import { InlineLoadingSpinner, PageLoadingSpinner } from "./ui/loading-spinner";
 
 interface SellerScheduleProps {
   onBack: () => void;
@@ -240,8 +241,7 @@ export default function SellerSchedule({
         <CardContent>
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-              <span className="ml-2">예약을 불러오는 중...</span>
+              <PageLoadingSpinner text="예약을 불러오는 중..." />
             </div>
           ) : error ? (
             <div className="text-center py-8 text-red-500">
@@ -583,7 +583,7 @@ export default function SellerSchedule({
               >
                 {isFetchingNextPage ? (
                   <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900 mr-2"></div>
+                    <InlineLoadingSpinner />
                     불러오는 중...
                   </>
                 ) : (

@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../ui/dialog";
 import { DateRangePicker } from "../ui/date-range-picker";
-import { Star, Search, User, Smartphone, MessageSquare, Eye, Filter, Loader2, AlertCircle } from "lucide-react";
+import { Star, Search, User, Smartphone, MessageSquare, Eye, Filter, AlertCircle } from "lucide-react";
+import { InlineLoadingSpinner, PageLoadingSpinner } from "../ui/loading-spinner";
 import type { ReservationWithReview } from "../../types/review";
 import { maskUserName } from "../../utils/privacy";
 import { formatPrice } from "../../utils/formatPrice";
@@ -222,8 +223,7 @@ export default function ReviewManagement({ storeId, onReviewDetail }: ReviewMana
             )}
             {isLoading && (
               <span className="ml-2 text-blue-600">
-                <Loader2 className="h-4 w-4 inline animate-spin mr-1" />
-                로딩 중...
+                <InlineLoadingSpinner text="로딩 중..." />
               </span>
             )}
           </div>
@@ -240,10 +240,8 @@ export default function ReviewManagement({ storeId, onReviewDetail }: ReviewMana
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="p-8 text-center">
-              <Loader2 className="h-12 w-12 text-muted-foreground mx-auto mb-4 animate-spin" />
-              <h3 className="font-semibold text-lg mb-2">리뷰를 불러오는 중...</h3>
-              <p className="text-muted-foreground">잠시만 기다려주세요.</p>
+            <div className="p-8">
+              <PageLoadingSpinner text="리뷰를 불러오는 중..." />
             </div>
           ) : error ? (
             <div className="p-8 text-center">

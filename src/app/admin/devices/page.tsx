@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { Loader2 } from 'lucide-react';
+import { PageLoadingSpinner } from '@/components/ui/loading-spinner';
 import DeviceManagement from '@/components/admin/DeviceManagement';
 
 export default function AdminDevicesPage() {
@@ -22,14 +22,7 @@ export default function AdminDevicesPage() {
   }, [user, profile, loading, router]);
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto" />
-          <p className="text-muted-foreground">로딩 중...</p>
-        </div>
-      </div>
-    );
+    return <PageLoadingSpinner text="로딩 중..." />;
   }
 
   if (!user || !profile) {

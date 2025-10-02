@@ -7,6 +7,7 @@ import SellerDashboardMain from '@/components/seller/SellerDashboardMain';
 import SellerPageHeader from '@/components/seller/SellerPageHeader';
 import { getProductTable } from '@/lib/api/productTables';
 import { getAllDeviceModels } from '@/lib/api/deviceModels';
+import { PageLoadingSpinner } from '@/components/ui/loading-spinner';
 
 interface EditProductTablePageProps {
   params: Promise<{
@@ -99,10 +100,7 @@ export default function EditProductTablePage({ params }: EditProductTablePagePro
           backHref="/seller/products"
         />
         <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">상품 테이블 데이터를 불러오는 중...</p>
-          </div>
+          <PageLoadingSpinner text="상품 테이블 데이터를 불러오는 중..." />
         </div>
       </SellerDashboardMain>
     );
