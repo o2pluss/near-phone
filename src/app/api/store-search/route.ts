@@ -154,14 +154,16 @@ export async function GET(request: NextRequest) {
           exposure_end_date,
           is_active
         ),
-        stores!inner(
+        stores(
           id,
           name,
           address,
           phone,
           rating,
           review_count,
-          hours
+          hours,
+          latitude,
+          longitude
         )
       `)
       .eq('is_active', true)

@@ -4,7 +4,7 @@ import { getConditionStyle } from '../lib/conditionStyles';
 import { getCarrierLabel } from '../lib/constants/codes';
 
 interface StoreConditionChipsProps {
-  productCarrier: "kt" | "skt" | "lgu";
+  productCarrier?: "kt" | "skt" | "lgu";
   conditions: string[];
   size?: 'sm' | 'md';
 }
@@ -19,9 +19,11 @@ export function StoreConditionChips({
   return (
     <div className="flex flex-wrap gap-1">
       {/* 통신사 CHIP (맨 앞에 표시) */}
-      <Badge className={`${sizeClasses} bg-blue-50 text-blue-700`}>
-        {getCarrierLabel(productCarrier.toUpperCase() as any)}
-      </Badge>
+      {productCarrier && (
+        <Badge className={`${sizeClasses} bg-blue-50 text-blue-700`}>
+          {getCarrierLabel(productCarrier.toUpperCase() as any)}
+        </Badge>
+      )}
       
       {/* 조건 CHIPs */}
       {conditions.map((condition, index) => {

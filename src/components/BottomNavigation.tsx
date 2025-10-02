@@ -45,7 +45,7 @@ export function BottomNavigation() {
       id: 'reservations',
       href: '/reservations',
       icon: Calendar,
-      label: '예약 목록',
+      label: '예약',
     },
   ];
 

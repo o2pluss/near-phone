@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
@@ -10,161 +10,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../ui/dialog";
 import { DateRangePicker } from "../ui/date-range-picker";
-import { Star, Search, User, Smartphone, MessageSquare, Eye, Filter } from "lucide-react";
+import { Star, Search, User, Smartphone, MessageSquare, Eye, Filter, Loader2, AlertCircle } from "lucide-react";
 import type { ReservationWithReview } from "../../types/review";
 import { maskUserName } from "../../utils/privacy";
 import { formatPrice } from "../../utils/formatPrice";
 import { getProductDisplayName } from "../../utils/productDisplay";
-
-// Mock 예약 및 리뷰 데이터 (예약 종료 건만 리뷰 보유)
-const mockReservationsWithReviews: ReservationWithReview[] = [
-  {
-    id: "res-1",
-    storeId: "store-1",
-    storeName: "강남 휴대폰 매장",
-    storeAddress: "서울시 강남구 역삼동 123-45",
-    storePhone: "02-1234-5678",
-    userId: "user-1",
-    customerName: "햇살좋은날☀️", // 카카오 닉네임 스타일
-    customerPhone: "010-1234-5678",
-    date: "2025-01-20",
-    time: "14:30",
-    model: "iPhone 16 Pro",
-    storage: "256GB",
-    productCarrier: "kt",
-    price: 1200000, // 예약 시 적용된 상품 금액
-    status: "completed",
-    createdAt: "2025-01-18T10:30:00",
-    conditions: ["번호이동", "카드할인"],
-    review: {
-      id: "review-1",
-      reservationId: "res-1",
-      rating: 5,
-      content: "친절하게 설명해주시고 가격도 합리적이었습니다. 추천합니다!",
-      createdAt: "2025-01-20T16:30:00"
-    }
-  },
-  {
-    id: "res-2",
-    storeId: "store-1",
-    storeName: "강남 휴대폰 매장",
-    storeAddress: "서울시 강남구 역삼동 123-45",
-    storePhone: "02-1234-5678",
-    userId: "user-2",
-    customerName: "핸드폰왕자👑", // 카카오 닉네임 스타일
-    customerPhone: "010-2345-6789",
-    date: "2025-01-19",
-    time: "10:15",
-    model: "갤럭시 S25 울트라",
-    storage: "512GB",
-    productCarrier: "skt",
-    price: 980000, // 예약 시 적용된 상품 금액
-    status: "completed",
-    createdAt: "2025-01-17T09:00:00",
-    conditions: ["신규가입", "결합할인"],
-    review: {
-      id: "review-2",
-      reservationId: "res-2",
-      rating: 4,
-      content: "매장이 깨끗하고 직원분이 전문적이었어요. 다만 대기시간이 조금 길었습니다.",
-      createdAt: "2025-01-19T12:15:00"
-    }
-  },
-  {
-    id: "res-3",
-    storeId: "store-1",
-    storeName: "강남 휴대폰 매장",
-    storeAddress: "서울시 강남구 역삼동 123-45",
-    storePhone: "02-1234-5678",
-    userId: "user-3",
-    customerName: "커피한잔☕", // 카카오 닉네임 스타일
-    customerPhone: "010-3456-7890",
-    date: "2025-01-18",
-    time: "16:20",
-    model: "iPhone 16",
-    storage: "128GB",
-    productCarrier: "lgu",
-    price: 950000, // 예약 시 적용된 상품 금액
-    status: "completed",
-    createdAt: "2025-01-16T14:00:00",
-    conditions: ["번호이동"],
-    review: {
-      id: "review-3",
-      reservationId: "res-3",
-      rating: 5,
-      content: "할인 혜택도 많고 AS 서비스도 좋네요. 만족합니다!",
-      createdAt: "2025-01-18T18:20:00"
-    }
-  },
-  {
-    id: "res-4",
-    storeId: "store-1",
-    storeName: "강남 휴대폰 매장",
-    storeAddress: "서울시 강남구 역삼동 123-45",
-    storePhone: "02-1234-5678",
-    userId: "user-4",
-    customerName: "갤럭시러버💙", // 카카오 닉네임 스타일
-    customerPhone: "010-4567-8901",
-    date: "2025-01-17",
-    time: "11:45",
-    model: "갤럭시 S25",
-    storage: "256GB",
-    productCarrier: "kt",
-    price: 850000, // 예약 시 적용된 상품 금액
-    status: "completed",
-    createdAt: "2025-01-15T13:20:00",
-    conditions: ["기기변경"],
-    review: {
-      id: "review-4",
-      reservationId: "res-4",
-      rating: 3,
-      content: "보통입니다. 가격은 괜찮았는데 서비스가 아쉬웠어요.",
-      createdAt: "2025-01-17T13:45:00"
-    }
-  },
-  {
-    id: "res-5",
-    storeId: "store-1",
-    storeName: "강남 휴대폰 매장",
-    storeAddress: "서울시 강남구 역삼동 123-45",
-    storePhone: "02-1234-5678",
-    userId: "user-5",
-    customerName: "성실한직장인😊", // 카카오 닉네임 스타일
-    customerPhone: "010-5678-9012",
-    date: "2025-01-16",
-    time: "09:30",
-    model: "iPhone 16 Pro Max",
-    storage: "1TB",
-    productCarrier: "skt",
-    price: 1400000, // 예약 시 적용된 상품 금액
-    status: "completed",
-    createdAt: "2025-01-14T11:15:00",
-    conditions: ["번호이동", "카드할인", "온라인할인"],
-    review: {
-      id: "review-5",
-      reservationId: "res-5",
-      rating: 5,
-      content: "정말 친절하시고 꼼꼼하게 설명해주세요. 다음에도 이용할 예정입니다.",
-      createdAt: "2025-01-16T11:30:00"
-    }
-  }
-];
-
-
+import { useSellerReviews } from "../../hooks/useSellerReviews";
+import { SellerReviewSearchParams } from "../../lib/api/reviews";
 
 interface ReviewManagementProps {
+  storeId: string;
   onReviewDetail?: (reservation: ReservationWithReview) => void;
 }
 
-export default function ReviewManagement({ onReviewDetail }: ReviewManagementProps) {
-  const [reservationsWithReviews, setReservationsWithReviews] = useState<ReservationWithReview[]>(mockReservationsWithReviews);
+export default function ReviewManagement({ storeId, onReviewDetail }: ReviewManagementProps) {
   const [selectedReservation, setSelectedReservation] = useState<ReservationWithReview | null>(null);
-  
-  // 판매자 권한으로 마스킹된 데이터 가져오기
-  const maskedReservations = reservationsWithReviews.map(reservation => ({
-    ...reservation,
-    customerName: maskUserName(reservation.customerName, 'seller')
-  }));
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
   
   // 필터 상태
@@ -180,6 +40,21 @@ export default function ReviewManagement({ onReviewDetail }: ReviewManagementPro
   const [appliedEndDate, setAppliedEndDate] = useState('');
   const [appliedRatingFilter, setAppliedRatingFilter] = useState<'all' | '1' | '2' | '3' | '4' | '5'>('all');
   const [appliedSortBy, setAppliedSortBy] = useState<"newest" | "oldest" | "highest" | "lowest">("newest");
+
+  // API 호출을 위한 파라미터
+  const searchParams: SellerReviewSearchParams = {
+    storeId,
+    userName: appliedUserNameSearch || undefined,
+    startDate: appliedStartDate || undefined,
+    endDate: appliedEndDate || undefined,
+    rating: appliedRatingFilter !== 'all' ? parseInt(appliedRatingFilter) : undefined,
+    sortBy: appliedSortBy,
+    page: 1,
+    limit: 50
+  };
+
+  // 서버에서 리뷰 데이터 조회
+  const { data: reviewData, isLoading, error, refetch } = useSellerReviews(searchParams);
 
   const handleViewDetail = (reservation: ReservationWithReview) => {
     setSelectedReservation(reservation);
@@ -209,41 +84,14 @@ export default function ReviewManagement({ onReviewDetail }: ReviewManagementPro
     setAppliedSortBy('newest');
   };
 
-  // 필터링된 예약 목록 (리뷰가 있는 종료 예약만)
-  const filteredReservations = maskedReservations
-    .filter(reservation => reservation.review) // 리뷰가 있는 예약만
-    .filter(reservation => {
-      // 사용자명 검색 (마스킹된 이름으로 검색)
-      const matchesUserName = 
-        !appliedUserNameSearch || 
-        reservation.customerName.toLowerCase().includes(appliedUserNameSearch.toLowerCase());
-
-      // 날짜 범위 필터 (리뷰 작성일 기준)
-      const reviewDate = new Date(reservation.review!.createdAt).toISOString().split('T')[0];
-      const matchesDateRange = 
-        (!appliedStartDate || reviewDate >= appliedStartDate) &&
-        (!appliedEndDate || reviewDate <= appliedEndDate);
-
-      const matchesRating = 
-        appliedRatingFilter === 'all' || 
-        reservation.review!.rating.toString() === appliedRatingFilter;
-
-      return matchesUserName && matchesDateRange && matchesRating;
-    }).sort((a, b) => {
-      // 정렬 (리뷰 기준)
-      switch (appliedSortBy) {
-        case "newest":
-          return new Date(b.review!.createdAt).getTime() - new Date(a.review!.createdAt).getTime();
-        case "oldest":
-          return new Date(a.review!.createdAt).getTime() - new Date(b.review!.createdAt).getTime();
-        case "highest":
-          return b.review!.rating - a.review!.rating;
-        case "lowest":
-          return a.review!.rating - b.review!.rating;
-        default:
-          return 0;
-      }
-    });
+  // 서버에서 받은 데이터 처리
+  const reservations = (reviewData as any)?.items || [];
+  
+  // 판매자 권한으로 마스킹된 데이터 가져오기
+  const maskedReservations = reservations.map((reservation: ReservationWithReview) => ({
+    ...reservation,
+    customerName: maskUserName(reservation.customerName, 'seller')
+  }));
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -366,10 +214,16 @@ export default function ReviewManagement({ onReviewDetail }: ReviewManagementPro
 
           {/* 검색 결과 수 */}
           <div className="text-sm text-muted-foreground border-t pt-3">
-            총 {filteredReservations.length}개의 리뷰
+            총 {maskedReservations.length}개의 리뷰
             {appliedUserNameSearch && (
               <span className="ml-2 text-blue-600">
                 ('{appliedUserNameSearch}' 검색 결과)
+              </span>
+            )}
+            {isLoading && (
+              <span className="ml-2 text-blue-600">
+                <Loader2 className="h-4 w-4 inline animate-spin mr-1" />
+                로딩 중...
               </span>
             )}
           </div>
@@ -381,11 +235,28 @@ export default function ReviewManagement({ onReviewDetail }: ReviewManagementPro
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <MessageSquare className="h-5 w-5" />
-            <span>리뷰 목록 ({filteredReservations.length}개)</span>
+            <span>리뷰 목록 ({maskedReservations.length}개)</span>
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {filteredReservations.length === 0 ? (
+          {isLoading ? (
+            <div className="p-8 text-center">
+              <Loader2 className="h-12 w-12 text-muted-foreground mx-auto mb-4 animate-spin" />
+              <h3 className="font-semibold text-lg mb-2">리뷰를 불러오는 중...</h3>
+              <p className="text-muted-foreground">잠시만 기다려주세요.</p>
+            </div>
+          ) : error ? (
+            <div className="p-8 text-center">
+              <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+              <h3 className="font-semibold text-lg mb-2 text-red-600">오류가 발생했습니다</h3>
+              <p className="text-muted-foreground mb-4">
+                리뷰를 불러오는 중 오류가 발생했습니다.
+              </p>
+              <Button onClick={() => refetch()} variant="outline">
+                다시 시도
+              </Button>
+            </div>
+          ) : maskedReservations.length === 0 ? (
             <div className="p-8 text-center">
               <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="font-semibold text-lg mb-2">리뷰가 없습니다</h3>
@@ -408,7 +279,7 @@ export default function ReviewManagement({ onReviewDetail }: ReviewManagementPro
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredReservations.map((reservation) => (
+                {maskedReservations.map((reservation: ReservationWithReview) => (
                   <TableRow key={reservation.id}>
                     <TableCell>
                       <div className="font-medium">{reservation.customerName}</div>

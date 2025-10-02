@@ -160,7 +160,9 @@ export async function GET(request: NextRequest) {
         s.phone,
         s.rating,
         s.review_count,
-        s.hours
+        s.hours,
+        s.latitude,
+        s.longitude
       FROM products p
       INNER JOIN latest_tables lt ON p.table_id = lt.id AND p.store_id = lt.store_id
       INNER JOIN device_models dm ON p.device_model_id = dm.id
@@ -218,7 +220,9 @@ export async function GET(request: NextRequest) {
         phone: item.phone,
         rating: item.rating,
         review_count: item.review_count,
-        hours: item.hours || '09:00 - 21:00'
+        hours: item.hours || '09:00 - 21:00',
+        latitude: item.latitude,
+        longitude: item.longitude
       }
     }));
     

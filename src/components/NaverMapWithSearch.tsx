@@ -15,6 +15,7 @@ interface MapStore {
   rating?: number;
   reviewCount?: number;
   price?: number;
+  distance?: number;
 }
 
 interface NaverMapWithSearchProps {
@@ -23,6 +24,7 @@ interface NaverMapWithSearchProps {
   onVisibleStoresChange?: (visibleStores: MapStore[]) => void;
   onMapClick?: () => void;
   onMapStateChange?: (center: { lat: number; lng: number }, zoom: number) => void;
+  onDistanceCalculated?: (storesWithDistance: MapStore[]) => void;
   center?: { lat: number; lng: number };
   zoom?: number;
   className?: string;
@@ -34,6 +36,7 @@ export default function NaverMapWithSearch({
   onVisibleStoresChange,
   onMapClick,
   onMapStateChange,
+  onDistanceCalculated,
   center = { lat: 37.5665, lng: 126.9780 },
   zoom = 10,
   className = "w-full h-96"
@@ -42,8 +45,77 @@ export default function NaverMapWithSearch({
   const [map, setMap] = useState<any>(null);
   const [markers, setMarkers] = useState<any[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [isGeometryLoaded, setIsGeometryLoaded] = useState(false);
   // 검색 관련 상태 제거
   const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number }>(center);
+
+  // 거리 계산 함수
+  const calculateDistance = useCallback((userLat: number, userLng: number, storeLat: number, storeLng: number): number => {
+    if (!isGeometryLoaded || !window.naver || !window.naver.maps || !(window.naver.maps as any).geometry) {
+      console.warn('네이버 지도 geometry 모듈이 로드되지 않았습니다.');
+      return 0;
+    }
+    
+    try {
+      const userLocation = new window.naver.maps.LatLng(userLat, userLng);
+      const storeLocation = new window.naver.maps.LatLng(storeLat, storeLng);
+      
+      // 네이버 지도 API의 거리 계산 함수 사용 (미터 단위)
+      const distanceInMeters = (window.naver.maps as any).geometry.spherical.computeDistanceBetween(userLocation, storeLocation);
+      
+      // 킬로미터로 변환하여 반환
+      return Math.round(distanceInMeters / 1000 * 10) / 10; // 소수점 첫째자리까지
+    } catch (error) {
+      console.error('거리 계산 중 오류 발생:', error);
+      return 0;
+    }
+  }, [isGeometryLoaded]);
+
+  // 사용자 위치 가져오기
+  const getUserLocation = useCallback(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          setCurrentLocation({ lat, lng });
+          
+          // 매장들과의 거리 계산
+          const storesWithDistance = stores.map(store => ({
+            ...store,
+            distance: calculateDistance(lat, lng, store.latitude, store.longitude)
+          }));
+          
+          // 거리 계산 완료 콜백 호출
+          if (onDistanceCalculated) {
+            onDistanceCalculated(storesWithDistance);
+          }
+        },
+        (error) => {
+          console.error('위치 정보를 가져올 수 없습니다:', error);
+          // 기본 위치 사용
+          const storesWithDistance = stores.map(store => ({
+            ...store,
+            distance: calculateDistance(center.lat, center.lng, store.latitude, store.longitude)
+          }));
+          
+          if (onDistanceCalculated) {
+            onDistanceCalculated(storesWithDistance);
+          }
+        }
+      );
+    } else {
+      // 기본 위치 사용
+      const storesWithDistance = stores.map(store => ({
+        ...store,
+        distance: calculateDistance(center.lat, center.lng, store.latitude, store.longitude)
+      }));
+      
+      if (onDistanceCalculated) {
+        onDistanceCalculated(storesWithDistance);
+      }
+    }
+  }, [stores, calculateDistance, onDistanceCalculated, center]);
 
   // 네이버 지도 API 스크립트 로드
   useEffect(() => {
@@ -55,15 +127,23 @@ export default function NaverMapWithSearch({
 
       const script = document.createElement('script');
       const clientId = process.env.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID || 'test';
-      script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${clientId}&submodules=geocoder`;
+      script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${clientId}&submodules=geocoder,geometry`;
       script.async = true;
       script.onload = () => {
-        console.log('네이버 지도 API 로드 완료');
         setIsLoaded(true);
+        
+        // geometry 모듈이 로드될 때까지 대기
+        const checkGeometry = () => {
+          if (window.naver && window.naver.maps && (window.naver.maps as any).geometry) {
+            setIsGeometryLoaded(true);
+          } else {
+            setTimeout(checkGeometry, 100);
+          }
+        };
+        checkGeometry();
       };
       script.onerror = (error) => {
         console.error('네이버 지도 API 로드 실패:', error);
-        console.log('사용된 클라이언트 ID:', clientId);
       };
       document.head.appendChild(script);
     };
@@ -71,11 +151,17 @@ export default function NaverMapWithSearch({
     loadNaverMapScript();
   }, []);
 
+  // 사용자 위치 가져오기 (지도와 geometry 모듈 로드 후)
+  useEffect(() => {
+    if (isLoaded && isGeometryLoaded && stores.length > 0) {
+      getUserLocation();
+    }
+  }, [isLoaded, isGeometryLoaded, stores, getUserLocation]);
+
   // 지도 초기화
   useEffect(() => {
     if (!isLoaded || !mapRef.current || map) return;
 
-    console.log('지도 초기화 시작', { isLoaded, mapRef: mapRef.current, map });
 
     try {
       const mapOptions: NaverMapOptions = {
@@ -89,7 +175,6 @@ export default function NaverMapWithSearch({
       };
 
       const newMap = new window.naver.maps.Map(mapRef.current, mapOptions);
-      console.log('지도 생성 완료', newMap);
       setMap(newMap);
       
       // 지도 클릭 이벤트 추가
@@ -103,7 +188,6 @@ export default function NaverMapWithSearch({
       setTimeout(() => {
         if (newMap && window.naver) {
           window.naver.maps.Event.trigger(newMap, 'resize');
-          console.log('지도 크기 재설정 완료');
         }
       }, 100);
       
@@ -173,11 +257,11 @@ export default function NaverMapWithSearch({
         const svgString = `
           <svg width="70" height="40" viewBox="0 0 70 40" fill="none" xmlns="http://www.w3.org/2000/svg">
             <!-- 말풍선 본체 -->
-            <rect x="8" y="4" width="54" height="24" rx="12" fill="#3C4654" stroke="#374151" stroke-width="1"/>
+            <rect x="8" y="4" width="54" height="26" rx="12" fill="#3C4654" stroke="#374151" stroke-width="1"/>
             <!-- 말풍선 꼬리 (본체 밑에 깔리도록 조정) -->
             <path d="M35 25L31 29L35 33L39 29L35 25Z" fill="#3C4654" stroke="#374151" stroke-width="1"/>
             <!-- 텍스트 -->
-            <text x="35" y="20" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="12" font-weight="bold">${priceText}</text>
+            <text x="35" y="22" text-anchor="middle" fill="white" font-size="14" font-weight="bold">${priceText}</text>
           </svg>
         `;
         
@@ -225,65 +309,20 @@ export default function NaverMapWithSearch({
     const center = mapInstance.getCenter();
     const zoom = mapInstance.getZoom();
     
-    // 디버깅을 위한 로그
-    console.log('지도 정보:', {
-      center: { lat: center.lat(), lng: center.lng() },
-      zoom: zoom,
-      sw: { lat: sw.lat(), lng: sw.lng() },
-      ne: { lat: ne.lat(), lng: ne.lng() },
-      bounds: {
-        latRange: ne.lat() - sw.lat(),
-        lngRange: ne.lng() - sw.lng()
-      }
-    });
     
+    // 지도 영역 내의 매장만 필터링
     const filteredStores = storesToFilter.filter(store => {
+      // 좌표가 있는 매장만 확인
       if (!store.latitude || !store.longitude) return false;
       
-      const lat = store.latitude;
-      const lng = store.longitude;
+      // 지도 경계 내에 있는지 확인
+      const storeLat = store.latitude;
+      const storeLng = store.longitude;
       
-      // 수동 경계 확인 (여유 마진 포함)
-      const margin = 0.01; // 약 1km 정도의 여유
-      const isInBoundsWithMargin = lat >= (sw.lat() - margin) && lat <= (ne.lat() + margin) && 
-                                  lng >= (sw.lng() - margin) && lng <= (ne.lng() + margin);
-      
-      // 지도 중심으로부터의 거리 기반 필터링
-      const centerLat = center.lat();
-      const centerLng = center.lng();
-      const latRange = ne.lat() - sw.lat();
-      const lngRange = ne.lng() - sw.lng();
-      const maxDistance = Math.max(latRange, lngRange) * 0.8; // 지도 크기의 80%
-      
-      const distanceFromCenter = Math.sqrt(
-        Math.pow(lat - centerLat, 2) + Math.pow(lng - centerLng, 2)
-      );
-      
-      const isNearCenter = distanceFromCenter <= maxDistance;
-      
-      // 두 조건 중 하나라도 만족하면 포함
-      const shouldInclude = isInBoundsWithMargin || isNearCenter;
-      
-      // 디버깅을 위한 로그 (처음 3개 매장만)
-      if (storesToFilter.indexOf(store) < 3) {
-        console.log(`매장 ${store.name}:`, {
-          lat, lng,
-          isInBoundsWithMargin,
-          isNearCenter,
-          shouldInclude,
-          distanceFromCenter: distanceFromCenter.toFixed(6),
-          maxDistance: maxDistance.toFixed(6),
-          swLat: sw.lat(),
-          neLat: ne.lat(),
-          swLng: sw.lng(),
-          neLng: ne.lng()
-        });
-      }
-      
-      return shouldInclude;
+      return storeLat >= sw.lat() && storeLat <= ne.lat() && 
+             storeLng >= sw.lng() && storeLng <= ne.lng();
     });
     
-    console.log(`지도 영역 내 매장: ${filteredStores.length}개 (전체: ${storesToFilter.length}개)`);
     
     // 부모 컴포넌트에 visible stores 전달
     onVisibleStoresChange(filteredStores);
@@ -299,7 +338,6 @@ export default function NaverMapWithSearch({
           map.setCenter(newCenter);
           setCurrentLocation({ lat: latitude, lng: longitude });
           
-          console.log('현재 위치로 이동:', { lat: latitude, lng: longitude });
           
           // 현재 위치로 이동 후 매장 필터링
           setTimeout(() => {
