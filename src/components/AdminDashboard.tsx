@@ -400,7 +400,7 @@ export default function AdminDashboard() {
     { id: 'stores', label: '매장 관리', icon: Store, href: '/admin/stores' },
     { id: 'products', label: '상품 관리', icon: Package, href: '/admin/products' },
     { id: 'reviews', label: '리뷰 관리', icon: MessageSquare, href: '/admin/reviews' },
-    { id: 'devices', label: '단말기 등록', icon: AlertTriangle, href: '/admin/devices' }
+    { id: 'devices', label: '단말기 관리', icon: AlertTriangle, href: '/admin/devices' }
   ];
 
   const renderContent = () => {
@@ -409,81 +409,87 @@ export default function AdminDashboard() {
         return (
           <div className="space-y-6">
             {/* Quick Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-              <Card 
-                className="cursor-pointer hover:shadow-md transition-shadow"
-                onClick={() => router.push('/admin/users')}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-center space-x-2">
-                    <Users className="h-8 w-8 text-blue-500" />
-                    <div>
-                      <p className="text-2xl font-bold">0</p>
-                      <p className="text-xs text-muted-foreground">총 사용자</p>
+            <div className="space-y-4">
+              {/* 첫 번째 행 - 3개 카드 */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card 
+                  className="cursor-pointer hover:shadow-md transition-shadow"
+                  onClick={() => router.push('/admin/users')}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-center space-x-2">
+                      <Users className="h-8 w-8 text-blue-500" />
+                      <div>
+                        <p className="text-2xl font-bold">0</p>
+                        <p className="text-xs text-muted-foreground">총 사용자</p>
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+                
+                <Card 
+                  className="cursor-pointer hover:shadow-md transition-shadow"
+                  onClick={() => router.push('/admin/stores')}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-center space-x-2">
+                      <Store className="h-8 w-8 text-green-500" />
+                      <div>
+                        <p className="text-2xl font-bold">{stores.filter(s => s.status === 'active').length}</p>
+                        <p className="text-xs text-muted-foreground">활성 매장</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                <Card 
+                  className="cursor-pointer hover:shadow-md transition-shadow"
+                  onClick={() => router.push('/admin/stores')}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-center space-x-2">
+                      <AlertTriangle className="h-8 w-8 text-orange-500" />
+                      <div>
+                        <p className="text-2xl font-bold">{pendingStores.length}</p>
+                        <p className="text-xs text-muted-foreground">승인 대기</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
               
-              <Card 
-                className="cursor-pointer hover:shadow-md transition-shadow"
-                onClick={() => router.push('/admin/stores')}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-center space-x-2">
-                    <Store className="h-8 w-8 text-green-500" />
-                    <div>
-                      <p className="text-2xl font-bold">{stores.filter(s => s.status === 'active').length}</p>
-                      <p className="text-xs text-muted-foreground">활성 매장</p>
+              {/* 두 번째 행 - 2개 카드 */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Card 
+                  className="cursor-pointer hover:shadow-md transition-shadow"
+                  onClick={() => router.push('/admin/products')}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-center space-x-2">
+                      <Package className="h-8 w-8 text-purple-500" />
+                      <div>
+                        <p className="text-2xl font-bold">{products.filter(p => p.status === 'active').length}</p>
+                        <p className="text-xs text-muted-foreground">활성 상품</p>
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              <Card 
-                className="cursor-pointer hover:shadow-md transition-shadow"
-                onClick={() => router.push('/admin/stores')}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-center space-x-2">
-                    <AlertTriangle className="h-8 w-8 text-orange-500" />
-                    <div>
-                      <p className="text-2xl font-bold">{pendingStores.length}</p>
-                      <p className="text-xs text-muted-foreground">승인 대기</p>
+                  </CardContent>
+                </Card>
+                
+                <Card 
+                  className="cursor-pointer hover:shadow-md transition-shadow"
+                  onClick={() => router.push('/admin/reviews')}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-center space-x-2">
+                      <MessageSquare className="h-8 w-8 text-yellow-500" />
+                      <div>
+                        <p className="text-2xl font-bold">0</p>
+                        <p className="text-xs text-muted-foreground">활성 리뷰</p>
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              <Card 
-                className="cursor-pointer hover:shadow-md transition-shadow"
-                onClick={() => router.push('/admin/products')}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-center space-x-2">
-                    <Package className="h-8 w-8 text-purple-500" />
-                    <div>
-                      <p className="text-2xl font-bold">{products.filter(p => p.status === 'active').length}</p>
-                      <p className="text-xs text-muted-foreground">활성 상품</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              <Card 
-                className="cursor-pointer hover:shadow-md transition-shadow"
-                onClick={() => router.push('/admin/reviews')}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-center space-x-2">
-                    <MessageSquare className="h-8 w-8 text-yellow-500" />
-                    <div>
-                      <p className="text-2xl font-bold">0</p>
-                      <p className="text-xs text-muted-foreground">활성 리뷰</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              </div>
             </div>
 
             {/* Pending Stores Alert */}
@@ -533,81 +539,87 @@ export default function AdminDashboard() {
         return (
           <div className="space-y-6">
             {/* Quick Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-              <Card 
-                className="cursor-pointer hover:shadow-md transition-shadow"
-                onClick={() => router.push('/admin/users')}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-center space-x-2">
-                    <Users className="h-8 w-8 text-blue-500" />
-                    <div>
-                      <p className="text-2xl font-bold">0</p>
-                      <p className="text-xs text-muted-foreground">총 사용자</p>
+            <div className="space-y-4">
+              {/* 첫 번째 행 - 3개 카드 */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card 
+                  className="cursor-pointer hover:shadow-md transition-shadow"
+                  onClick={() => router.push('/admin/users')}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-center space-x-2">
+                      <Users className="h-8 w-8 text-blue-500" />
+                      <div>
+                        <p className="text-2xl font-bold">0</p>
+                        <p className="text-xs text-muted-foreground">총 사용자</p>
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+                
+                <Card 
+                  className="cursor-pointer hover:shadow-md transition-shadow"
+                  onClick={() => router.push('/admin/stores')}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-center space-x-2">
+                      <Store className="h-8 w-8 text-green-500" />
+                      <div>
+                        <p className="text-2xl font-bold">{stores.filter(s => s.status === 'active').length}</p>
+                        <p className="text-xs text-muted-foreground">활성 매장</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                <Card 
+                  className="cursor-pointer hover:shadow-md transition-shadow"
+                  onClick={() => router.push('/admin/stores')}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-center space-x-2">
+                      <AlertTriangle className="h-8 w-8 text-orange-500" />
+                      <div>
+                        <p className="text-2xl font-bold">{pendingStores.length}</p>
+                        <p className="text-xs text-muted-foreground">승인 대기</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
               
-              <Card 
-                className="cursor-pointer hover:shadow-md transition-shadow"
-                onClick={() => router.push('/admin/stores')}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-center space-x-2">
-                    <Store className="h-8 w-8 text-green-500" />
-                    <div>
-                      <p className="text-2xl font-bold">{stores.filter(s => s.status === 'active').length}</p>
-                      <p className="text-xs text-muted-foreground">활성 매장</p>
+              {/* 두 번째 행 - 2개 카드 */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Card 
+                  className="cursor-pointer hover:shadow-md transition-shadow"
+                  onClick={() => router.push('/admin/products')}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-center space-x-2">
+                      <Package className="h-8 w-8 text-purple-500" />
+                      <div>
+                        <p className="text-2xl font-bold">{products.filter(p => p.status === 'active').length}</p>
+                        <p className="text-xs text-muted-foreground">활성 상품</p>
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              <Card 
-                className="cursor-pointer hover:shadow-md transition-shadow"
-                onClick={() => router.push('/admin/stores')}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-center space-x-2">
-                    <AlertTriangle className="h-8 w-8 text-orange-500" />
-                    <div>
-                      <p className="text-2xl font-bold">{pendingStores.length}</p>
-                      <p className="text-xs text-muted-foreground">승인 대기</p>
+                  </CardContent>
+                </Card>
+                
+                <Card 
+                  className="cursor-pointer hover:shadow-md transition-shadow"
+                  onClick={() => router.push('/admin/reviews')}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-center space-x-2">
+                      <MessageSquare className="h-8 w-8 text-yellow-500" />
+                      <div>
+                        <p className="text-2xl font-bold">0</p>
+                        <p className="text-xs text-muted-foreground">활성 리뷰</p>
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              <Card 
-                className="cursor-pointer hover:shadow-md transition-shadow"
-                onClick={() => router.push('/admin/products')}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-center space-x-2">
-                    <Package className="h-8 w-8 text-purple-500" />
-                    <div>
-                      <p className="text-2xl font-bold">{products.filter(p => p.status === 'active').length}</p>
-                      <p className="text-xs text-muted-foreground">활성 상품</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              <Card 
-                className="cursor-pointer hover:shadow-md transition-shadow"
-                onClick={() => router.push('/admin/reviews')}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-center space-x-2">
-                    <MessageSquare className="h-8 w-8 text-yellow-500" />
-                    <div>
-                      <p className="text-2xl font-bold">0</p>
-                      <p className="text-xs text-muted-foreground">활성 리뷰</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              </div>
             </div>
 
             {/* Pending Stores Alert */}
@@ -656,10 +668,9 @@ export default function AdminDashboard() {
             </Button>
             <div>
               <h1 className="text-2xl font-bold flex items-center space-x-2">
-                <Shield className="h-6 w-6" />
                 <span>ADMIN</span>
               </h1>
-              <p className="text-muted-foreground">시스템 전체 관리</p>
+              <p className="text-muted-foreground">서비스 전체 관리</p>
             </div>
           </div>
           

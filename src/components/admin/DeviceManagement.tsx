@@ -77,9 +77,8 @@ export default function DeviceManagement() {
           </Button>
           <div>
             <h1 className="text-2xl font-bold">
-              단말기 등록
+              단말기 관리
             </h1>
-            <p className="text-muted-foreground">단말기 모델 관리</p>
           </div>
         </div>
         <Button>

@@ -5,33 +5,67 @@ import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { 
-  Store, 
-  UserCheck, 
-  Ban, 
   Eye,
-  CheckCircle,
-  XCircle,
   AlertTriangle,
-  ArrowLeft
+  ArrowLeft,
+  X,
+  MapPin,
+  Phone,
+  Calendar,
+  Building
 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 
+interface SellerApplication {
+  id: string;
+  user_id: string;
+  business_name: string;
+  contact_name: string;
+  contact_email: string;
+  contact_phone: string;
+  business_address: string;
+  business_license: string;
+  business_description: string;
+  status: 'pending' | 'approved' | 'rejected';
+  created_at: string;
+  reviewed_at: string | null;
+}
+
 interface Store {
   id: string;
+  seller_id: string;
   name: string;
-  ownerName: string;
-  email: string;
-  phone: string;
+  description: string;
   address: string;
-  businessNumber: string;
-  status: 'active' | 'blocked' | 'pending';
-  createdAt: string;
+  address_detail: string;
+  latitude: number;
+  longitude: number;
+  phone: string;
+  business_number: string;
+  is_active: boolean;
+  is_verified: boolean;
+  rating: number;
+  review_count: number;
+  view_count: number;
+  facilities: string[] | null;
+  special_services: string[] | null;
+  created_at: string;
+  updated_at: string;
+  hours: {
+    sunday: string;
+    weekday: string;
+    saturday: string;
+  };
+  images: string[];
 }
 
 export default function StoreManagement() {
   const router = useRouter();
-  const [stores, setStores] = useState<Store[]>([]);
+  const [applications, setApplications] = useState<SellerApplication[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedStore, setSelectedStore] = useState<Store | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isLoadingStore, setIsLoadingStore] = useState(false);
 
   // 판매자 신청 데이터 가져오기
   useEffect(() => {
@@ -46,33 +80,19 @@ export default function StoreManagement() {
           console.error('판매자 신청 데이터 조회 실패:', error);
           if (error.code === 'PGRST205') {
             console.log('seller_applications 테이블이 없습니다. 빈 배열로 설정합니다.');
-            setStores([]);
+            setApplications([]);
             setIsLoading(false);
             return;
           }
-          setStores([]);
+          setApplications([]);
           setIsLoading(false);
           return;
         }
 
-        // 데이터를 Store 형태로 변환
-        const storeData: Store[] = data.map((app: any) => ({
-          id: app.id,
-          name: app.business_name,
-          ownerName: app.contact_name,
-          email: app.contact_email,
-          phone: app.contact_phone,
-          address: app.business_address,
-          businessNumber: app.business_license,
-          status: app.status === 'pending' ? 'pending' : 
-                  app.status === 'approved' ? 'active' : 'blocked',
-          createdAt: app.created_at.split('T')[0]
-        }));
-
-        setStores(storeData);
+        setApplications(data || []);
       } catch (error) {
         console.error('판매자 신청 데이터 조회 오류:', error);
-        setStores([]);
+        setApplications([]);
       } finally {
         setIsLoading(false);
       }
@@ -81,83 +101,46 @@ export default function StoreManagement() {
     fetchSellerApplications();
   }, []);
 
-  const handleStoreApproval = async (storeId: string, approve: boolean) => {
+
+
+  const handleViewStore = async (application: SellerApplication) => {
+    setIsLoadingStore(true);
     try {
-      const status = approve ? 'approved' : 'rejected';
-      
-      // 먼저 신청 정보를 가져와서 user_id 확인
-      const { data: application } = await supabase
-        .from('seller_applications')
-        .select('user_id, contact_email')
-        .eq('id', storeId)
+      // seller_id로 stores 테이블에서 매장 정보 조회
+      const { data: storeData, error } = await supabase
+        .from('stores')
+        .select('*')
+        .eq('seller_id', application.user_id)
         .single();
 
-      if (!application) {
-        alert('신청 정보를 찾을 수 없습니다.');
-        return;
-      }
-
-      // seller_applications 테이블 업데이트
-      const { error } = await supabase
-        .from('seller_applications')
-        .update({
-          status,
-          reviewed_at: new Date().toISOString(),
-        })
-        .eq('id', storeId);
-
       if (error) {
-        console.error('승인/거부 처리 실패:', error);
-        alert('처리에 실패했습니다: ' + error.message);
+        console.error('매장 정보 조회 실패:', error);
+        alert('매장 정보를 찾을 수 없습니다.');
         return;
       }
 
-      // 승인된 경우 profiles 테이블의 is_active를 true로 업데이트
-      if (approve) {
-        try {
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .update({
-              is_active: true,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('user_id', application.user_id);
-
-          if (profileError) {
-            console.error('프로필 활성화 실패:', profileError);
-          } else {
-            console.log('프로필 활성화 완료');
-          }
-        } catch (profileError) {
-          console.error('프로필 활성화 중 오류:', profileError);
-        }
+      if (storeData) {
+        setSelectedStore(storeData);
+        setIsModalOpen(true);
+      } else {
+        alert('등록된 매장이 없습니다.');
       }
-
-      // 로컬 상태 업데이트
-      setStores(stores.map(store => 
-        store.id === storeId 
-          ? { ...store, status: approve ? 'active' : 'blocked' }
-          : store
-      ));
-
-      alert(approve ? '승인되었습니다.' : '거부되었습니다.');
     } catch (error) {
-      console.error('승인/거부 처리 오류:', error);
-      alert('처리 중 오류가 발생했습니다.');
+      console.error('매장 정보 조회 오류:', error);
+      alert('매장 정보 조회 중 오류가 발생했습니다.');
+    } finally {
+      setIsLoadingStore(false);
     }
   };
 
-  const handleStoreBlock = (storeId: string, block: boolean) => {
-    setStores(stores.map(store => 
-      store.id === storeId 
-        ? { ...store, status: block ? 'blocked' : 'active' }
-        : store
-    ));
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setSelectedStore(null);
   };
 
-  const pendingStores = stores.filter(store => store.status === 'pending');
-  const activeStores = stores.filter(store => store.status === 'active');
-  const blockedStores = stores.filter(store => store.status === 'blocked');
+  const pendingApplications = applications.filter(app => app.status === 'pending');
+  const approvedApplications = applications.filter(app => app.status === 'approved');
+  const rejectedApplications = applications.filter(app => app.status === 'rejected');
 
   return (
     <div className="container mx-auto p-4 space-y-6">
@@ -176,78 +159,28 @@ export default function StoreManagement() {
             <h1 className="text-2xl font-bold">
               매장 관리
             </h1>
-            <p className="text-muted-foreground">판매자 신청 및 매장 관리</p>
           </div>
         </div>
         
-        {pendingStores.length > 0 && (
+        {pendingApplications.length > 0 && (
           <Badge variant="destructive" className="flex items-center space-x-1">
             <AlertTriangle className="h-3 w-3" />
-            <span>{pendingStores.length}개 승인 대기</span>
+            <span>{pendingApplications.length}개 승인 대기</span>
           </Badge>
         )}
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Store className="h-8 w-8 text-blue-500" />
-              <div>
-                <p className="text-2xl font-bold">{stores.length}</p>
-                <p className="text-xs text-muted-foreground">총 매장</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <CheckCircle className="h-8 w-8 text-green-500" />
-              <div>
-                <p className="text-2xl font-bold">{activeStores.length}</p>
-                <p className="text-xs text-muted-foreground">활성 매장</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <AlertTriangle className="h-8 w-8 text-orange-500" />
-              <div>
-                <p className="text-2xl font-bold">{pendingStores.length}</p>
-                <p className="text-xs text-muted-foreground">승인 대기</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Ban className="h-8 w-8 text-red-500" />
-              <div>
-                <p className="text-2xl font-bold">{blockedStores.length}</p>
-                <p className="text-xs text-muted-foreground">차단된 매장</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
 
       {/* Store List */}
       <div className="space-y-4">
         <div className="flex justify-between items-center">
           <h3 className="text-lg font-semibold">
-            매장 목록 ({isLoading ? '로딩 중...' : stores.length})
+            판매자 목록 ({isLoading ? '로딩 중...' : applications.length})
           </h3>
           <div className="flex space-x-2">
-            <Badge variant="destructive">{pendingStores.length}개 승인 대기</Badge>
-            <Badge variant="outline">{blockedStores.length}개 차단됨</Badge>
+            <Badge variant="destructive">{pendingApplications.length}개 승인 대기</Badge>
+            <Badge variant="default">{approvedApplications.length}개 승인됨</Badge>
+            <Badge variant="outline">{rejectedApplications.length}개 거부됨</Badge>
           </div>
         </div>
 
@@ -255,75 +188,45 @@ export default function StoreManagement() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>매장명</TableHead>
-                <TableHead>사업자</TableHead>
+                <TableHead>사업자명</TableHead>
                 <TableHead>이메일</TableHead>
                 <TableHead>연락처</TableHead>
                 <TableHead>사업자번호</TableHead>
+                <TableHead>주소</TableHead>
                 <TableHead>상태</TableHead>
                 <TableHead>신청일</TableHead>
                 <TableHead>관리</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {stores.map((store) => (
-                <TableRow key={store.id}>
-                  <TableCell className="font-medium">{store.name}</TableCell>
-                  <TableCell>{store.ownerName}</TableCell>
-                  <TableCell>{store.email}</TableCell>
-                  <TableCell>{store.phone}</TableCell>
-                  <TableCell>{store.businessNumber}</TableCell>
+              {applications.map((application) => (
+                <TableRow key={application.id}>
+                  <TableCell className="font-medium">{application.contact_name}</TableCell>
+                  <TableCell>{application.contact_email}</TableCell>
+                  <TableCell>{application.contact_phone}</TableCell>
+                  <TableCell>{application.business_license}</TableCell>
+                  <TableCell className="max-w-xs truncate">{application.business_address}</TableCell>
                   <TableCell>
                     <Badge 
                       variant={
-                        store.status === 'active' ? 'default' : 
-                        store.status === 'pending' ? 'secondary' : 'destructive'
+                        application.status === 'approved' ? 'default' : 
+                        application.status === 'pending' ? 'secondary' : 'destructive'
                       }
                     >
-                      {store.status === 'active' ? '승인됨' : 
-                       store.status === 'pending' ? '승인 대기' : '차단됨'}
+                      {application.status === 'approved' ? '승인됨' : 
+                       application.status === 'pending' ? '승인 대기' : '거부됨'}
                     </Badge>
                   </TableCell>
-                  <TableCell>{store.createdAt}</TableCell>
+                  <TableCell>{application.created_at.split('T')[0]}</TableCell>
                   <TableCell>
                     <div className="flex space-x-1">
-                      {store.status === 'pending' && (
-                        <>
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => handleStoreApproval(store.id, true)}
-                          >
-                            <CheckCircle className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => handleStoreApproval(store.id, false)}
-                          >
-                            <XCircle className="h-4 w-4" />
-                          </Button>
-                        </>
-                      )}
-                      {store.status === 'active' && (
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handleStoreBlock(store.id, true)}
-                        >
-                          <Ban className="h-4 w-4" />
-                        </Button>
-                      )}
-                      {store.status === 'blocked' && (
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handleStoreBlock(store.id, false)}
-                        >
-                          <UserCheck className="h-4 w-4" />
-                        </Button>
-                      )}
-                      <Button variant="outline" size="sm">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handleViewStore(application)}
+                        title="매장 정보 보기"
+                        disabled={isLoadingStore}
+                      >
                         <Eye className="h-4 w-4" />
                       </Button>
                     </div>
@@ -334,6 +237,161 @@ export default function StoreManagement() {
           </Table>
         </Card>
       </div>
+
+      {/* 매장 정보 모달 */}
+      {isModalOpen && selectedStore && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-6 border-b">
+              <h2 className="text-xl font-semibold flex items-center gap-2">
+                <Building className="h-5 w-5" />
+                {selectedStore.name} 정보
+              </h2>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={closeModal}
+                className="p-2"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              {/* 기본 정보 */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <h3 className="font-medium text-gray-900">매장명</h3>
+                  <p className="text-gray-700">{selectedStore.name}</p>
+                </div>
+                <div className="space-y-2">
+                  <h3 className="font-medium text-gray-900">사업자등록번호</h3>
+                  <p className="text-gray-700">{selectedStore.business_number}</p>
+                </div>
+              </div>
+
+              {/* 매장 설명 */}
+              <div className="space-y-2">
+                <h3 className="font-medium text-gray-900">매장 설명</h3>
+                <p className="text-gray-700 bg-gray-50 p-3 rounded-md">
+                  {selectedStore.description}
+                </p>
+              </div>
+
+              {/* 연락처 정보 */}
+              <div className="space-y-4">
+                <h3 className="font-medium text-gray-900">연락처 정보</h3>
+                <div className="flex items-center gap-2">
+                  <Phone className="h-4 w-4 text-gray-500" />
+                  <span className="text-gray-700">{selectedStore.phone}</span>
+                </div>
+              </div>
+
+              {/* 주소 정보 */}
+              <div className="space-y-2">
+                <h3 className="font-medium text-gray-900">주소</h3>
+                <div className="flex items-start gap-2">
+                  <MapPin className="h-4 w-4 text-gray-500 mt-1" />
+                  <div>
+                    <p className="text-gray-700">{selectedStore.address}</p>
+                    {selectedStore.address_detail && (
+                      <p className="text-gray-600 text-sm mt-1">{selectedStore.address_detail}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* 영업시간 */}
+              <div className="space-y-2">
+                <h3 className="font-medium text-gray-900">영업시간</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">평일</p>
+                    <p className="text-gray-700">{selectedStore.hours.weekday}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">토요일</p>
+                    <p className="text-gray-700">{selectedStore.hours.saturday}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">일요일</p>
+                    <p className="text-gray-700">{selectedStore.hours.sunday}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* 상태 및 등록일 */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <h3 className="font-medium text-gray-900">상태</h3>
+                  <div className="flex gap-2">
+                    <Badge variant={selectedStore.is_active ? 'default' : 'destructive'}>
+                      {selectedStore.is_active ? '활성' : '비활성'}
+                    </Badge>
+                    {selectedStore.is_verified && (
+                      <Badge variant="secondary">인증됨</Badge>
+                    )}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <h3 className="font-medium text-gray-900">등록일</h3>
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-gray-500" />
+                    <span className="text-gray-700">{selectedStore.created_at.split('T')[0]}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 통계 정보 */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="text-center p-3 bg-gray-50 rounded-md">
+                  <p className="text-2xl font-bold text-blue-600">{selectedStore.rating.toFixed(1)}</p>
+                  <p className="text-sm text-gray-600">평점</p>
+                </div>
+                <div className="text-center p-3 bg-gray-50 rounded-md">
+                  <p className="text-2xl font-bold text-green-600">{selectedStore.review_count}</p>
+                  <p className="text-sm text-gray-600">리뷰 수</p>
+                </div>
+                <div className="text-center p-3 bg-gray-50 rounded-md">
+                  <p className="text-2xl font-bold text-purple-600">{selectedStore.view_count}</p>
+                  <p className="text-sm text-gray-600">조회 수</p>
+                </div>
+              </div>
+
+              {/* 위치 정보 */}
+              <div className="space-y-2">
+                <h3 className="font-medium text-gray-900">위치 정보</h3>
+                <p className="text-sm text-gray-600">
+                  위도: {selectedStore.latitude}, 경도: {selectedStore.longitude}
+                </p>
+              </div>
+
+              {/* 매장 이미지 */}
+              {selectedStore.images && selectedStore.images.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="font-medium text-gray-900">매장 이미지</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    {selectedStore.images.map((image, index) => (
+                      <img
+                        key={index}
+                        src={image}
+                        alt={`매장 이미지 ${index + 1}`}
+                        className="w-full h-24 object-cover rounded-md"
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 p-6 border-t bg-gray-50">
+              <Button variant="outline" onClick={closeModal}>
+                닫기
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
